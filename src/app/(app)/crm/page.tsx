@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import {
   Building2,
   ChevronDown,
@@ -725,6 +725,45 @@ export default function CrmPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingLead, setEditingLead] = useState<LeadEntry | null>(null)
+
+  // Importa leads enviados via webhook (Google Sheets → API → Supabase)
+  useEffect(() => {
+    fetch("/api/leads/incoming")
+      .then((r) => r.json())
+      .then(({ leads }) => {
+        if (!leads?.length) return
+        const current = getLeadsSnapshot()
+        const existingIds = new Set(current.map((l) => l.id))
+        const newLeads = (leads as Array<Record<string, unknown>>)
+          .filter((l) => !existingIds.has(l.id as string))
+          .map((l) =>
+            createLeadFromForm({
+              name: String(l.name ?? ""),
+              email: String(l.email ?? ""),
+              phone: String(l.phone ?? ""),
+              whatsapp: String(l.whatsapp ?? ""),
+              company: String(l.company ?? ""),
+              segment: String(l.segment ?? ""),
+              city: String(l.city ?? ""),
+              state: String(l.state ?? ""),
+              current_site: String(l.current_site ?? ""),
+              instagram: String(l.instagram ?? ""),
+              project_type: (l.project_type as LeadForm["project_type"]) || "",
+              project_objective: String(l.project_objective ?? ""),
+              desired_deadline: String(l.desired_deadline ?? ""),
+              investment_range: String(l.investment_range ?? ""),
+              origin: (l.origin as LeadOrigin) || "",
+              status: "new",
+              estimated_value: l.estimated_value ? String(l.estimated_value) : "",
+              responsible: String(l.responsible ?? ""),
+            })
+          )
+        if (!newLeads.length) return
+        saveLeads([...newLeads, ...current])
+        emitLeadsChange()
+      })
+      .catch(() => {})
+  }, [])
 
   // Kanban drag state
   const dragLeadId = useRef<string | null>(null)
