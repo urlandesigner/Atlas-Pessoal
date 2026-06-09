@@ -922,51 +922,55 @@ export function linkProposalToLead(lead: LeadEntry, proposalId: string): LeadEnt
 
 // ─── Pipeline Stage Management ──────────────────────────────────────────────
 
-export function advanceLeadStage(lead: LeadEntry, toStage?: PipelineStage): LeadEntry {
+// Move a lead to any stage (forward or backward), recording journey + timeline.
+export function moveLeadToStage(lead: LeadEntry, toStage: PipelineStage): LeadEntry {
   const now = new Date().toISOString()
   const currentStage = lead.status_stage
-  const nextStage = toStage || getNextStage(lead)
 
-  if (!nextStage || !PIPELINE_STAGES.includes(nextStage)) {
+  if (!PIPELINE_STAGES.includes(toStage) || toStage === currentStage) {
     return lead
   }
 
+  const forward = PIPELINE_STAGES.indexOf(toStage) > PIPELINE_STAGES.indexOf(currentStage)
+
   const updated = normalizeLead({
     ...lead,
-    status_stage: nextStage,
+    status_stage: toStage,
     updated_at: now,
   })
 
-  // Record stage exit
-  updated.stages = lead.stages.map((s) => {
-    if (s.stage === currentStage && s.exited_at === null) {
-      return {
-        ...s,
-        exited_at: now,
-        duration_days: Math.floor((new Date(now).getTime() - new Date(s.entered_at).getTime()) / 86400000),
-      }
-    }
-    return s
-  })
+  // Close the open stage entry
+  updated.stages = lead.stages.map((s) =>
+    s.stage === currentStage && s.exited_at === null
+      ? {
+          ...s,
+          exited_at: now,
+          duration_days: Math.floor(
+            (new Date(now).getTime() - new Date(s.entered_at).getTime()) / 86400000
+          ),
+        }
+      : s
+  )
 
-  // Record stage entry
-  updated.stages.push({
-    stage: nextStage,
-    entered_at: now,
-    exited_at: null,
-  })
+  // Open the new stage entry
+  updated.stages.push({ stage: toStage, entered_at: now, exited_at: null })
 
-  // Add timeline event
   updated.timeline = [
     ...lead.timeline,
     buildTimelineEvent(
       "stage_changed",
-      `Lead avançou de "${PIPELINE_STAGE_LABEL[currentStage]}" para "${PIPELINE_STAGE_LABEL[nextStage]}".`,
+      `Lead ${forward ? "avançou" : "retornou"} de "${PIPELINE_STAGE_LABEL[currentStage]}" para "${PIPELINE_STAGE_LABEL[toStage]}".`,
       now
     ),
   ]
 
   return updated
+}
+
+export function advanceLeadStage(lead: LeadEntry, toStage?: PipelineStage): LeadEntry {
+  const next = toStage ?? getNextStage(lead)
+  if (!next) return lead
+  return moveLeadToStage(lead, next)
 }
 
 export function getNextStage(lead: LeadEntry): PipelineStage | null {
@@ -1105,5 +1109,46 @@ export function computeLeadStats(leads: LeadEntry[]) {
     conversionRate,
     pipelineValue,
     closedValue,
+  }
+}
+
+// Pipeline-aware stats keyed on status_stage (the new source of truth).
+export function computePipelineStats(leads: LeadEntry[]) {
+  const now = new Date()
+  const idx = (s: PipelineStage) => PIPELINE_STAGES.indexOf(s)
+
+  const thisMonth = leads.filter((l) => {
+    const d = new Date(l.created_at)
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+  })
+
+  const byStage = {} as Record<PipelineStage, number>
+  for (const stage of PIPELINE_STAGES) {
+    byStage[stage] = leads.filter((l) => l.status_stage === stage).length
+  }
+
+  const proposalSent = leads.filter((l) => idx(l.status_stage) >= idx("proposal")).length
+  const clients = leads.filter((l) => l.status_stage === "client")
+  const conversionRate = leads.length > 0 ? Math.round((clients.length / leads.length) * 100) : 0
+
+  // Active deals = proposal/project: value still in play
+  const pipelineValue = leads
+    .filter((l) => idx(l.status_stage) >= idx("proposal") && l.status_stage !== "client")
+    .reduce((sum, l) => sum + (l.opportunity.estimated_value ?? 0), 0)
+
+  const wonValue = clients.reduce(
+    (sum, l) => sum + (l.opportunity.closed_value ?? l.opportunity.estimated_value ?? 0),
+    0
+  )
+
+  return {
+    total: leads.length,
+    thisMonth: thisMonth.length,
+    byStage,
+    proposalSent,
+    clients: clients.length,
+    conversionRate,
+    pipelineValue,
+    wonValue,
   }
 }
