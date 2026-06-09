@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useMemo, useState, useSyncExternalStore } from "react"
 import {
   ArrowLeft,
   ArrowRight,
@@ -87,14 +87,6 @@ function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: 
   const [opp, setOpp] = useState(lead.opportunity)
   const [comm, setComm] = useState(lead.communication)
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setProspect(lead.prospect)
-    setQual(lead.qualification)
-    setOpp(lead.opportunity)
-    setComm(lead.communication)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.id])
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -565,7 +557,7 @@ export default function LeadDetailPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-5xl px-6 pt-6">
-          <OverviewTab lead={lead} onUpdate={handleUpdate} />
+          <OverviewTab key={lead.id} lead={lead} onUpdate={handleUpdate} />
         </div>
       </div>
     </div>

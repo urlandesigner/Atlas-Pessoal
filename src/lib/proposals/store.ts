@@ -13,6 +13,44 @@ export type EntryMode = "percent" | "value"
 export const DOMAIN_ADDON_PRICE = 40
 export const HOSTING_ADDON_PRICE = 250
 
+export function getProposalAddonTotal(included: string[]) {
+  return (
+    (included.some((i) => /(domínio|dominio)/i.test(i)) ? DOMAIN_ADDON_PRICE : 0) +
+    (included.some((i) => /hospedagem/i.test(i)) ? HOSTING_ADDON_PRICE : 0)
+  )
+}
+
+/** Parceria explícita ou investimento só com extras (desenvolvimento zerado). */
+export function resolveProposalPartnership(
+  isPartnership: boolean,
+  totalValue: number,
+  included: string[]
+) {
+  if (isPartnership) return true
+  const addonTotal = getProposalAddonTotal(included)
+  if (addonTotal === 0) return false
+  return Math.max(totalValue, addonTotal) - addonTotal === 0
+}
+
+export function getProposalDisplayTotal(
+  isPartnership: boolean,
+  totalValue: number,
+  included: string[]
+) {
+  const addonTotal = getProposalAddonTotal(included)
+  if (resolveProposalPartnership(isPartnership, totalValue, included)) return addonTotal
+  return Math.max(totalValue, addonTotal)
+}
+
+export function getProposalDevelopmentTotal(
+  isPartnership: boolean,
+  totalValue: number,
+  included: string[]
+) {
+  if (resolveProposalPartnership(isPartnership, totalValue, included)) return 0
+  return Math.max(getProposalDisplayTotal(false, totalValue, included) - getProposalAddonTotal(included), 0)
+}
+
 export interface ProposalScopeCategory {
   id: string
   name: string
@@ -86,6 +124,19 @@ export const PROPOSALS_STORAGE_KEY = "atlas_proposals"
 export const PROPOSALS_STORAGE_EVENT = "atlas-proposals-change"
 
 const DEFAULT_PAYMENT_METHOD = "50% na aprovação/publicação e 50% pra 30 dias"
+export const PARTNERSHIP_PAYMENT_METHOD = "A combinar"
+
+export function getProposalPaymentMethod(
+  isPartnership: boolean,
+  paymentMethod: string,
+  totalValue = 0,
+  included: string[] = []
+) {
+  if (resolveProposalPartnership(isPartnership, totalValue, included)) {
+    return PARTNERSHIP_PAYMENT_METHOD
+  }
+  return paymentMethod.trim() || "A definir"
+}
 
 export const PROPOSAL_STATUS_LABEL: Record<ProposalStatus, string> = {
   draft: "Rascunho",
@@ -256,15 +307,14 @@ function normalizeScope(value: unknown): ProposalScopeCategory[] {
     .filter((category) => category.name || category.items.length)
 }
 
-function normalizeProposal(entry: Partial<ProposalEntry>): ProposalEntry {
+export function normalizeProposalEntry(entry: Partial<ProposalEntry>): ProposalEntry {
   const createdAt = entry.created_at ?? new Date().toISOString()
   const proposalDate = entry.proposalDate || new Date().toISOString().split("T")[0]
-  const isPartnership = Boolean(entry.isPartnership)
   const included = normalizeStringList(entry.included)
-  // Domínio e hospedagem são cobranças separadas: continuam valendo mesmo em parceria.
-  const addonTotal =
-    (included.some((i) => /(domínio|dominio)/i.test(i)) ? DOMAIN_ADDON_PRICE : 0) +
-    (included.some((i) => /hospedagem/i.test(i)) ? HOSTING_ADDON_PRICE : 0)
+  const addonTotal = getProposalAddonTotal(included)
+  const rawTotal = normalizeNumber(entry.totalValue)
+  const isPartnership = resolveProposalPartnership(Boolean(entry.isPartnership), rawTotal, included)
+  const totalValue = isPartnership ? addonTotal : Math.max(rawTotal, addonTotal)
 
   return {
     id: entry.id ?? createId("proposal"),
@@ -278,11 +328,10 @@ function normalizeProposal(entry: Partial<ProposalEntry>): ProposalEntry {
     objective: entry.objective?.trim() || "",
     scope: normalizeScope(entry.scope),
     estimatedDeadline: entry.estimatedDeadline?.trim() || "",
-    // Em parceria o desenvolvimento é gratuito; resta apenas o custo dos add-ons.
-    totalValue: isPartnership ? addonTotal : normalizeNumber(entry.totalValue),
+    totalValue,
     entryMode: entry.entryMode === "value" ? "value" : "percent",
-    entryValue: isPartnership ? 0 : normalizeNumber(entry.entryValue),
-    paymentMethod: isPartnership ? "" : entry.paymentMethod?.trim() || "",
+    entryValue: isPartnership && addonTotal === 0 ? 0 : normalizeNumber(entry.entryValue),
+    paymentMethod: isPartnership ? PARTNERSHIP_PAYMENT_METHOD : entry.paymentMethod?.trim() || "",
     isPartnership,
     included,
     notIncluded: normalizeStringList(entry.notIncluded),
@@ -300,10 +349,13 @@ export function getProposalsSnapshot() {
     const raw = localStorage.getItem(PROPOSALS_STORAGE_KEY)
     if (raw === cachedProposalsRaw) return cachedProposalsSnapshot
 
-    const snapshot = raw
-      ? (JSON.parse(raw) as Partial<ProposalEntry>[]).map(normalizeProposal)
-      : DEFAULT_PROPOSALS
-    cachedProposalsRaw = raw
+    const parsed = raw ? (JSON.parse(raw) as Partial<ProposalEntry>[]) : DEFAULT_PROPOSALS
+    const snapshot = Array.isArray(parsed) ? parsed.map(normalizeProposalEntry) : DEFAULT_PROPOSALS
+    const normalizedRaw = JSON.stringify(snapshot)
+    if (raw !== normalizedRaw) {
+      localStorage.setItem(PROPOSALS_STORAGE_KEY, normalizedRaw)
+    }
+    cachedProposalsRaw = normalizedRaw
     cachedProposalsSnapshot = snapshot
     return snapshot
   } catch {
@@ -319,10 +371,11 @@ export function getProposalsServerSnapshot() {
 
 export function saveProposals(data: ProposalEntry[]) {
   if (typeof window === "undefined") return
-  const raw = JSON.stringify(data)
+  const snapshot = data.map(normalizeProposalEntry)
+  const raw = JSON.stringify(snapshot)
   localStorage.setItem(PROPOSALS_STORAGE_KEY, raw)
   cachedProposalsRaw = raw
-  cachedProposalsSnapshot = data
+  cachedProposalsSnapshot = snapshot
 }
 
 export function emitProposalsChange() {
@@ -354,32 +407,33 @@ export function createScopeCategory(name = "Nova categoria"): ProposalScopeCateg
 }
 
 export function createProposalForm(entry: ProposalEntry): ProposalForm {
+  const normalized = normalizeProposalEntry(entry)
   return {
-    title: entry.clientName === "Cliente não informado" ? "" : entry.clientName,
-    clientId: entry.clientId ?? "",
-    clientName: entry.clientName === "Cliente não informado" ? "" : entry.clientName,
-    projectId: entry.projectId ?? "",
-    leadId: entry.leadId ?? "",
-    proposalDate: entry.proposalDate,
-    validUntil: entry.validUntil,
-    objective: entry.objective,
-    scope: entry.scope.map((category) => ({ ...category, items: [...category.items] })),
-    estimatedDeadline: entry.estimatedDeadline,
-    totalValue: entry.totalValue ? String(entry.totalValue) : "",
-    entryMode: entry.entryMode,
-    entryValue: entry.entryValue ? String(entry.entryValue) : "",
-    paymentMethod: entry.paymentMethod,
-    isPartnership: entry.isPartnership,
-    included: [...entry.included],
-    notIncluded: [...entry.notIncluded],
-    notes: entry.notes ?? "",
-    status: entry.status,
+    title: normalized.clientName === "Cliente não informado" ? "" : normalized.clientName,
+    clientId: normalized.clientId ?? "",
+    clientName: normalized.clientName === "Cliente não informado" ? "" : normalized.clientName,
+    projectId: normalized.projectId ?? "",
+    leadId: normalized.leadId ?? "",
+    proposalDate: normalized.proposalDate,
+    validUntil: normalized.validUntil,
+    objective: normalized.objective,
+    scope: normalized.scope.map((category) => ({ ...category, items: [...category.items] })),
+    estimatedDeadline: normalized.estimatedDeadline,
+    totalValue: String(normalized.totalValue ?? ""),
+    entryMode: normalized.entryMode,
+    entryValue: normalized.entryValue ? String(normalized.entryValue) : "",
+    paymentMethod: normalized.paymentMethod,
+    isPartnership: normalized.isPartnership,
+    included: [...normalized.included],
+    notIncluded: [...normalized.notIncluded],
+    notes: normalized.notes ?? "",
+    status: normalized.status,
   }
 }
 
 export function createProposalFromForm(form: ProposalForm): ProposalEntry {
   const now = new Date().toISOString()
-  return normalizeProposal({
+  return normalizeProposalEntry({
     title: form.clientName,
     clientId: form.clientId || null,
     clientName: form.clientName,
@@ -411,7 +465,7 @@ export function updateProposalInCollection(
 ) {
   return proposals.map((proposal) =>
     proposal.id === proposalId
-      ? normalizeProposal({
+      ? normalizeProposalEntry({
           ...proposal,
           title: form.clientName,
           clientId: form.clientId || null,
@@ -439,7 +493,7 @@ export function updateProposalInCollection(
 }
 
 export function duplicateProposal(proposal: ProposalEntry): ProposalEntry {
-  return normalizeProposal({
+  return normalizeProposalEntry({
     ...proposal,
     id: createId("proposal"),
     title: proposal.clientName,

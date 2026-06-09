@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/sidebar"
 
 const pessoalNav = [
-  { label: "Leads & CRM", href: "/crm", icon: TrendingUp },
+  { label: "Leads", href: "/crm", icon: TrendingUp },
   { label: "Propostas", href: "/freelancer/proposals", icon: FileText },
   { label: "Clientes", href: "/freelancer/clients", icon: Users },
   { label: "Financeiro", href: "/freelancer/revenue", icon: DollarSign },

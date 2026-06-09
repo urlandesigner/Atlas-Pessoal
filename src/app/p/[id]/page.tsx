@@ -6,12 +6,29 @@ import { Fraunces } from "next/font/google"
 
 import {
   DOMAIN_ADDON_PRICE,
+  getProposalAddonTotal,
+  getProposalDevelopmentTotal,
+  getProposalDisplayTotal,
+  getProposalPaymentMethod,
   getProposalsServerSnapshot,
+  resolveProposalPartnership,
   getProposalsSnapshot,
   HOSTING_ADDON_PRICE,
   subscribeProposalsStore,
-  type ProposalEntry,
 } from "@/lib/proposals/store"
+
+function subscribeClientHydrated(onStoreChange: () => void) {
+  onStoreChange()
+  return () => {}
+}
+
+function getClientHydratedSnapshot() {
+  return true
+}
+
+function getServerHydratedSnapshot() {
+  return false
+}
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -31,10 +48,6 @@ function formatDate(value: string | null | undefined) {
     month: "long",
     year: "numeric",
   })
-}
-
-function getEntryValue(p: ProposalEntry) {
-  return p.entryMode === "percent" ? (p.totalValue * p.entryValue) / 100 : p.entryValue
 }
 
 // ─── WhatsApp icon ───────────────────────────────────────────────────────────
@@ -148,8 +161,11 @@ export default function ProposalWebPage() {
     getProposalsSnapshot,
     getProposalsServerSnapshot
   )
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const mounted = useSyncExternalStore(
+    subscribeClientHydrated,
+    getClientHydratedSnapshot,
+    getServerHydratedSnapshot
+  )
 
   const proposal = proposals.find((p) => p.id === params.id)
 
@@ -169,12 +185,27 @@ export default function ProposalWebPage() {
     )
   }
 
-  const entryValue = getEntryValue(proposal)
-  const remaining = Math.max(proposal.totalValue - entryValue, 0)
   const includeDomain = proposal.included.some((i) => /(domínio|dominio)/i.test(i))
   const includeHosting = proposal.included.some((i) => /hospedagem/i.test(i))
-  const addonTotal = (includeDomain ? DOMAIN_ADDON_PRICE : 0) + (includeHosting ? HOSTING_ADDON_PRICE : 0)
-  const baseTotal = proposal.totalValue - addonTotal
+  const addonTotal = getProposalAddonTotal(proposal.included)
+  const isPartnership = resolveProposalPartnership(
+    proposal.isPartnership,
+    proposal.totalValue,
+    proposal.included
+  )
+  const displayTotal = getProposalDisplayTotal(proposal.isPartnership, proposal.totalValue, proposal.included)
+  const baseTotal = getProposalDevelopmentTotal(proposal.isPartnership, proposal.totalValue, proposal.included)
+  const paymentLabel = getProposalPaymentMethod(
+    proposal.isPartnership,
+    proposal.paymentMethod,
+    proposal.totalValue,
+    proposal.included
+  )
+  const entryValue =
+    proposal.entryMode === "percent"
+      ? (displayTotal * proposal.entryValue) / 100
+      : proposal.entryValue
+  const remaining = Math.max(displayTotal - entryValue, 0)
 
   return (
     <div className={`${fraunces.variable} proposal-web`}>
@@ -273,7 +304,7 @@ export default function ProposalWebPage() {
             <div className="invest-card overflow-hidden rounded-3xl">
               <div className="invest-glow" aria-hidden />
               <div className="relative p-8 sm:p-12">
-                {proposal.isPartnership ? (
+                {isPartnership ? (
                   addonTotal > 0 ? (
                     <>
                       <div className="mb-8 flex flex-col gap-3 border-b border-[var(--line)] pb-8 text-[var(--soft)]">
@@ -290,11 +321,17 @@ export default function ProposalWebPage() {
                         Total anual
                       </p>
                       <p className="invest-total mt-3 text-[clamp(3rem,9vw,6rem)] font-medium leading-none tracking-[-0.04em] tabular-nums">
-                        {money(addonTotal)}
+                        {money(displayTotal)}
                       </p>
                       <p className="mt-6 max-w-md leading-relaxed text-[var(--soft)]">
                         Desenvolvimento em parceria, sem cobrança. Domínio e hospedagem são cobranças anuais à parte.
                       </p>
+                      <div className="mt-8 rounded-2xl border border-[var(--line)] p-5">
+                        <p className="font-mono text-[0.7rem] uppercase tracking-[0.28em] text-[var(--muted)]">
+                          Forma de pagamento
+                        </p>
+                        <p className="mt-2 leading-relaxed text-[var(--soft)]">{paymentLabel}</p>
+                      </div>
                     </>
                   ) : (
                     <>
@@ -310,6 +347,12 @@ export default function ProposalWebPage() {
                       <p className="mt-6 max-w-md leading-relaxed text-[var(--soft)]">
                         Projeto executado em parceria, sem cobrança.
                       </p>
+                      <div className="mt-8 rounded-2xl border border-[var(--line)] p-5">
+                        <p className="font-mono text-[0.7rem] uppercase tracking-[0.28em] text-[var(--muted)]">
+                          Forma de pagamento
+                        </p>
+                        <p className="mt-2 leading-relaxed text-[var(--soft)]">{paymentLabel}</p>
+                      </div>
                     </>
                   )
                 ) : (
@@ -326,7 +369,7 @@ export default function ProposalWebPage() {
                       Investimento total
                     </p>
                     <p className="invest-total mt-3 text-[clamp(3rem,9vw,6rem)] font-medium leading-none tracking-[-0.04em] tabular-nums">
-                      {money(proposal.totalValue)}
+                      {money(displayTotal)}
                     </p>
 
                     <div className="mt-10 grid gap-5 sm:grid-cols-2">
@@ -344,7 +387,7 @@ export default function ProposalWebPage() {
                           Forma de pagamento
                         </p>
                         <p className="mt-2 leading-relaxed text-[var(--soft)]">
-                          {proposal.paymentMethod || "A combinar"}
+                          {paymentLabel}
                         </p>
                       </div>
                     </div>

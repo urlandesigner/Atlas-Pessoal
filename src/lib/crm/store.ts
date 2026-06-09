@@ -545,7 +545,7 @@ function normalizeLead(entry: Partial<LeadEntry>): LeadEntry {
 
   const normalized: LeadEntry = {
     id: entry.id ?? createId(),
-    status_stage: PIPELINE_STAGES.includes(stage as any) ? (stage as PipelineStage) : "lead",
+    status_stage: PIPELINE_STAGES.includes(stage as PipelineStage) ? (stage as PipelineStage) : "lead",
     status: LEAD_STATUS_ORDER.includes(entry.status as LeadStatus) ? (entry.status as LeadStatus) : "new",
     completion_percentage: entry.completion_percentage ?? 0,
     lost: entry.lost ?? false,

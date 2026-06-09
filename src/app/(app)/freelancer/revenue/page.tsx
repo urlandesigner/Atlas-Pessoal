@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -54,24 +54,23 @@ interface FlatPayment extends PaymentEntry {
   workspace: string
 }
 
-export default function RevenuePage() {
-  const [payments, setPayments] = useState<FlatPayment[]>([])
-
-  useEffect(() => {
-    const all = loadAll()
-    if (!all) return
-
-    const flat: FlatPayment[] = []
-    const workspaces = ["professional", "personal", "freelancer"] as const
-    for (const ws of workspaces) {
-      for (const project of all[ws] ?? []) {
-        for (const p of project.payments ?? []) {
-          flat.push({ ...p, projectName: project.name, clientName: project.clientName, workspace: ws })
-        }
+function flattenPayments(all: AllProjects): FlatPayment[] {
+  const flat: FlatPayment[] = []
+  const workspaces = ["professional", "personal", "freelancer"] as const
+  for (const ws of workspaces) {
+    for (const project of all[ws] ?? []) {
+      for (const p of project.payments ?? []) {
+        flat.push({ ...p, projectName: project.name, clientName: project.clientName, workspace: ws })
       }
     }
-    flat.sort((a, b) => b.date.localeCompare(a.date))
-    setPayments(flat)
+  }
+  return flat.sort((a, b) => b.date.localeCompare(a.date))
+}
+
+export default function RevenuePage() {
+  const payments = useMemo(() => {
+    const all = loadAll()
+    return all ? flattenPayments(all) : []
   }, [])
 
   const totalIncome = payments.filter((p) => p.type === "income").reduce((s, p) => s + p.amount, 0)

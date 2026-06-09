@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import {
   Ban,
   Building2,
@@ -133,11 +133,17 @@ interface LeadSheetProps {
 }
 
 function LeadSheet({ open, onClose, onSave }: LeadSheetProps) {
-  const [form, setForm] = useState<QuickLeadForm>(EMPTY_QUICK_LEAD_FORM)
+  return (
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+        {open ? <LeadSheetForm onClose={onClose} onSave={onSave} /> : null}
+      </SheetContent>
+    </Sheet>
+  )
+}
 
-  const prevOpen = useRef(false)
-  if (open && !prevOpen.current) setForm(EMPTY_QUICK_LEAD_FORM)
-  prevOpen.current = open
+function LeadSheetForm({ onClose, onSave }: { onClose: () => void; onSave: (form: QuickLeadForm) => void }) {
+  const [form, setForm] = useState<QuickLeadForm>(EMPTY_QUICK_LEAD_FORM)
 
   function set(key: keyof QuickLeadForm, value: string) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -149,8 +155,7 @@ function LeadSheet({ open, onClose, onSave }: LeadSheetProps) {
   }
 
   return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+    <>
         <SheetHeader className="border-b px-6 pb-4 pt-6">
           <SheetTitle>Novo Lead</SheetTitle>
         </SheetHeader>
@@ -218,8 +223,7 @@ function LeadSheet({ open, onClose, onSave }: LeadSheetProps) {
             Criar Lead
           </Button>
         </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    </>
   )
 }
 
