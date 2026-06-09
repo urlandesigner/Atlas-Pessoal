@@ -2,6 +2,10 @@
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
+// Pipeline Stages (Nova estrutura)
+export type PipelineStage = "lead" | "qualified" | "meeting" | "proposal" | "project" | "client"
+
+// Legacy compatibility
 export type LeadStatus =
   | "new"
   | "contacted"
@@ -56,9 +60,64 @@ export interface LeadComment {
 
 export interface LeadTimelineEvent {
   id: string
-  type: "created" | "status_changed" | "comment_added" | "activity_added" | "proposal_linked" | "edited"
+  type: "created" | "status_changed" | "comment_added" | "activity_added" | "proposal_linked" | "edited" | "stage_changed"
   description: string
   created_at: string
+  stage?: PipelineStage // para stage_changed events
+}
+
+export interface StageEntry {
+  stage: PipelineStage
+  entered_at: string
+  exited_at: string | null
+  duration_days?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface StageCompletion {
+  stage: PipelineStage
+  fields_filled: string[]
+  total_fields: number
+  completion_percentage: number
+}
+
+export interface ProspectData {
+  company: string
+  segment?: string
+  city?: string
+  state?: string
+  origin?: LeadOrigin | ""
+  first_contact_date: string
+}
+
+export interface QualificationData {
+  contact_name?: string
+  email?: string
+  phone?: string
+  job_title?: string
+  project_objective?: string
+  project_type?: ProjectType | ""
+  desired_deadline?: string
+  investment_range?: string
+  qualified_at?: string
+}
+
+export interface OpportunityData {
+  estimated_value?: number | null
+  quote_value?: number | null
+  closed_value?: number | null
+  closing_probability?: number
+  notes?: string
+  updated_at?: string
+}
+
+export interface CommunicationData {
+  email?: string
+  phone?: string
+  whatsapp?: string
+  instagram?: string
+  current_site?: string
+  preferred_channel?: "email" | "phone" | "whatsapp" | "instagram"
 }
 
 export interface BriefingData {
@@ -78,40 +137,64 @@ export interface BriefingData {
 }
 
 export interface LeadEntry {
+  // Identity & Pipeline
   id: string
-  // Contact
+  status_stage: PipelineStage
+  status: LeadStatus // legacy, for backward compatibility
+  completion_percentage: number
+  created_at: string
+  updated_at: string
+
+  // Core data (organized by section)
+  prospect: ProspectData
+  qualification: QualificationData
+  opportunity: OpportunityData
+  communication: CommunicationData
+
+  // Pipeline tracking
+  stages: StageEntry[]
+  stage_completion: Record<PipelineStage, StageCompletion>
+
+  // Historical data
+  activities: LeadActivity[]
+  comments: LeadComment[]
+  timeline: LeadTimelineEvent[]
+  briefing: BriefingData
+
+  // Relationships
+  proposal_ids: string[]
+  project_ids: string[]
+
+  // Legacy fields for backward compatibility
   name: string
   email: string
   phone: string
   whatsapp: string
-  // Company
   company: string
   segment: string
   city: string
   state: string
   current_site: string
   instagram: string
-  // Opportunity
   project_type: ProjectType | ""
   project_objective: string
   desired_deadline: string
   investment_range: string
-  // Meta
   origin: LeadOrigin | ""
-  status: LeadStatus
   estimated_value: number | null
   responsible: string
   proposal_id: string | null
-  // Sub-entities
-  activities: LeadActivity[]
-  comments: LeadComment[]
-  timeline: LeadTimelineEvent[]
-  briefing: BriefingData
-  // Timestamps
-  created_at: string
-  updated_at: string
 }
 
+// Quick form for lead creation (< 15 seconds)
+export interface QuickLeadForm {
+  company: string // required
+  segment?: string
+  city?: string
+  origin?: LeadOrigin | ""
+}
+
+// Full form for legacy support
 export interface LeadForm {
   name: string
   email: string
@@ -134,6 +217,43 @@ export interface LeadForm {
 }
 
 // ─── Labels & Constants ────────────────────────────────────────────────────
+
+// Pipeline stages
+export const PIPELINE_STAGE_LABEL: Record<PipelineStage, string> = {
+  lead: "Lead",
+  qualified: "Qualificado",
+  meeting: "Reunião",
+  proposal: "Proposta",
+  project: "Projeto",
+  client: "Cliente",
+}
+
+export const PIPELINE_STAGES: PipelineStage[] = [
+  "lead",
+  "qualified",
+  "meeting",
+  "proposal",
+  "project",
+  "client",
+]
+
+export const PIPELINE_STAGE_FIELDS: Record<PipelineStage, string[]> = {
+  lead: ["company", "segment", "city", "origin"],
+  qualified: [
+    "contact_name",
+    "email",
+    "phone",
+    "job_title",
+    "project_objective",
+    "project_type",
+    "desired_deadline",
+    "investment_range",
+  ],
+  meeting: ["meeting_date", "meeting_notes", "meeting_attendees"],
+  proposal: ["estimated_value", "quote_value", "closing_probability"],
+  project: ["project_start", "project_deadline", "project_manager"],
+  client: ["closed_value"],
+}
 
 export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
   new: "Novo Lead",
@@ -234,6 +354,42 @@ export const EMPTY_BRIEFING: BriefingData = {
   features: [],
 }
 
+// Quick form for lead creation
+export const EMPTY_QUICK_LEAD_FORM: QuickLeadForm = {
+  company: "",
+  segment: "",
+  city: "",
+  origin: "",
+}
+
+export const EMPTY_QUALIFICATION: QualificationData = {
+  contact_name: "",
+  email: "",
+  phone: "",
+  job_title: "",
+  project_objective: "",
+  project_type: "",
+  desired_deadline: "",
+  investment_range: "",
+}
+
+export const EMPTY_OPPORTUNITY: OpportunityData = {
+  estimated_value: null,
+  quote_value: null,
+  closed_value: null,
+  closing_probability: 0,
+  notes: "",
+}
+
+export const EMPTY_COMMUNICATION: CommunicationData = {
+  email: "",
+  phone: "",
+  whatsapp: "",
+  instagram: "",
+  current_site: "",
+  preferred_channel: "whatsapp",
+}
+
 export const EMPTY_LEAD_FORM: LeadForm = {
   name: "",
   email: "",
@@ -278,10 +434,104 @@ function buildTimelineEvent(
   return { id: createId(), type, description, created_at: createdAt }
 }
 
+function calculateCompletionPercentage(lead: Partial<LeadEntry>): number {
+  const stage = lead.status_stage ?? "lead"
+  const fields = PIPELINE_STAGE_FIELDS[stage]
+  if (!fields || fields.length === 0) return 0
+
+  let filled = 0
+  for (const field of fields) {
+    const value = (lead as any)[field]
+    if (value && value !== "" && value !== null) filled++
+  }
+  return Math.round((filled / fields.length) * 100)
+}
+
+function buildStageCompletion(lead: Partial<LeadEntry>): Record<PipelineStage, StageCompletion> {
+  const result: Record<PipelineStage, StageCompletion> = {} as any
+
+  for (const stage of PIPELINE_STAGES) {
+    const fields = PIPELINE_STAGE_FIELDS[stage]
+    const filled = fields.filter((f) => {
+      const value = (lead as any)[f]
+      return value && value !== "" && value !== null
+    })
+
+    result[stage] = {
+      stage,
+      fields_filled: filled,
+      total_fields: fields.length,
+      completion_percentage: fields.length > 0 ? Math.round((filled.length / fields.length) * 100) : 0,
+    }
+  }
+
+  return result
+}
+
 function normalizeLead(entry: Partial<LeadEntry>): LeadEntry {
   const now = entry.created_at ?? new Date().toISOString()
-  return {
+  const stage = entry.status_stage ?? "lead"
+
+  const normalized: LeadEntry = {
     id: entry.id ?? createId(),
+    status_stage: PIPELINE_STAGES.includes(stage as any) ? (stage as PipelineStage) : "lead",
+    status: LEAD_STATUS_ORDER.includes(entry.status as LeadStatus) ? (entry.status as LeadStatus) : "new",
+    completion_percentage: entry.completion_percentage ?? 0,
+    created_at: now,
+    updated_at: entry.updated_at ?? now,
+
+    // Core data
+    prospect: {
+      company: entry.prospect?.company ?? entry.company?.trim() ?? "",
+      segment: entry.prospect?.segment ?? entry.segment?.trim(),
+      city: entry.prospect?.city ?? entry.city?.trim(),
+      state: entry.prospect?.state ?? entry.state?.trim(),
+      origin: (entry.prospect?.origin ?? entry.origin) as LeadOrigin | "" | undefined,
+      first_contact_date: entry.prospect?.first_contact_date ?? now,
+    },
+
+    qualification: {
+      contact_name: entry.qualification?.contact_name ?? entry.name?.trim(),
+      email: entry.qualification?.email ?? entry.email?.trim(),
+      phone: entry.qualification?.phone ?? entry.phone?.trim(),
+      job_title: entry.qualification?.job_title,
+      project_objective: entry.qualification?.project_objective ?? entry.project_objective?.trim(),
+      project_type: (entry.qualification?.project_type ?? entry.project_type) as ProjectType | "" | undefined,
+      desired_deadline: entry.qualification?.desired_deadline ?? entry.desired_deadline?.trim(),
+      investment_range: entry.qualification?.investment_range ?? entry.investment_range?.trim(),
+    },
+
+    opportunity: {
+      estimated_value: entry.opportunity?.estimated_value ?? entry.estimated_value ?? null,
+      quote_value: entry.opportunity?.quote_value ?? null,
+      closed_value: entry.opportunity?.closed_value ?? null,
+      closing_probability: entry.opportunity?.closing_probability ?? 0,
+      notes: entry.opportunity?.notes,
+    },
+
+    communication: {
+      email: entry.communication?.email ?? entry.email?.trim(),
+      phone: entry.communication?.phone ?? entry.phone?.trim(),
+      whatsapp: entry.communication?.whatsapp ?? entry.whatsapp?.trim(),
+      instagram: entry.communication?.instagram ?? entry.instagram?.trim(),
+      current_site: entry.communication?.current_site ?? entry.current_site?.trim(),
+      preferred_channel: entry.communication?.preferred_channel,
+    },
+
+    stages: Array.isArray(entry.stages) ? entry.stages : [],
+    stage_completion: entry.stage_completion ?? buildStageCompletion(entry),
+
+    // Historical data
+    activities: Array.isArray(entry.activities) ? entry.activities : [],
+    comments: Array.isArray(entry.comments) ? entry.comments : [],
+    timeline: Array.isArray(entry.timeline) ? entry.timeline : [],
+    briefing: entry.briefing ?? { ...EMPTY_BRIEFING },
+
+    // Relationships
+    proposal_ids: Array.isArray(entry.proposal_ids) ? entry.proposal_ids : [],
+    project_ids: Array.isArray(entry.project_ids) ? entry.project_ids : [],
+
+    // Legacy fields for backward compatibility
     name: entry.name?.trim() ?? "",
     email: entry.email?.trim() ?? "",
     phone: entry.phone?.trim() ?? "",
@@ -297,22 +547,14 @@ function normalizeLead(entry: Partial<LeadEntry>): LeadEntry {
     desired_deadline: entry.desired_deadline?.trim() ?? "",
     investment_range: entry.investment_range?.trim() ?? "",
     origin: entry.origin ?? "",
-    status: LEAD_STATUS_ORDER.includes(entry.status as LeadStatus)
-      ? (entry.status as LeadStatus)
-      : "new",
-    estimated_value:
-      typeof entry.estimated_value === "number" && Number.isFinite(entry.estimated_value)
-        ? entry.estimated_value
-        : null,
     responsible: entry.responsible?.trim() ?? "",
     proposal_id: entry.proposal_id ?? null,
-    activities: Array.isArray(entry.activities) ? entry.activities : [],
-    comments: Array.isArray(entry.comments) ? entry.comments : [],
-    timeline: Array.isArray(entry.timeline) ? entry.timeline : [],
-    briefing: entry.briefing ?? { ...EMPTY_BRIEFING },
-    created_at: now,
-    updated_at: entry.updated_at ?? now,
   }
+
+  // Recalculate completion percentage
+  normalized.completion_percentage = calculateCompletionPercentage(normalized)
+
+  return normalized
 }
 
 export function getLeadsSnapshot(): LeadEntry[] {
@@ -369,6 +611,40 @@ export function subscribeLeadsStore(onStoreChange: () => void) {
 }
 
 // ─── CRUD helpers ─────────────────────────────────────────────────────────
+
+// Create lead from quick form (< 15 seconds)
+export function createLeadFromQuickForm(form: QuickLeadForm): LeadEntry {
+  const now = new Date().toISOString()
+
+  const entry = normalizeLead({
+    status_stage: "lead",
+    company: form.company,
+    segment: form.segment,
+    city: form.city,
+    origin: form.origin,
+    created_at: now,
+    updated_at: now,
+  })
+
+  // Initialize stage entry
+  entry.stages = [
+    {
+      stage: "lead",
+      entered_at: now,
+      exited_at: null,
+      metadata: {
+        company: form.company,
+        segment: form.segment,
+        city: form.city,
+        origin: form.origin,
+      },
+    },
+  ]
+
+  entry.timeline = [buildTimelineEvent("created", `Lead criado para ${form.company}.`, now)]
+
+  return entry
+}
 
 export function createLeadFromForm(form: LeadForm): LeadEntry {
   const now = new Date().toISOString()
@@ -572,6 +848,130 @@ export function linkProposalToLead(lead: LeadEntry, proposalId: string): LeadEnt
   ]
   updated.comments = lead.comments
   updated.activities = lead.activities
+  return updated
+}
+
+// ─── Pipeline Stage Management ──────────────────────────────────────────────
+
+export function advanceLeadStage(lead: LeadEntry, toStage?: PipelineStage): LeadEntry {
+  const now = new Date().toISOString()
+  const currentStage = lead.status_stage
+  const nextStage = toStage || getNextStage(lead)
+
+  if (!nextStage || !PIPELINE_STAGES.includes(nextStage)) {
+    return lead
+  }
+
+  const updated = normalizeLead({
+    ...lead,
+    status_stage: nextStage,
+    updated_at: now,
+  })
+
+  // Record stage exit
+  updated.stages = lead.stages.map((s) => {
+    if (s.stage === currentStage && s.exited_at === null) {
+      return {
+        ...s,
+        exited_at: now,
+        duration_days: Math.floor((new Date(now).getTime() - new Date(s.entered_at).getTime()) / 86400000),
+      }
+    }
+    return s
+  })
+
+  // Record stage entry
+  updated.stages.push({
+    stage: nextStage,
+    entered_at: now,
+    exited_at: null,
+  })
+
+  // Add timeline event
+  updated.timeline = [
+    ...lead.timeline,
+    buildTimelineEvent(
+      "stage_changed",
+      `Lead avançou de "${PIPELINE_STAGE_LABEL[currentStage]}" para "${PIPELINE_STAGE_LABEL[nextStage]}".`,
+      now
+    ),
+  ]
+
+  return updated
+}
+
+export function getNextStage(lead: LeadEntry): PipelineStage | null {
+  const currentIndex = PIPELINE_STAGES.indexOf(lead.status_stage)
+  if (currentIndex >= 0 && currentIndex < PIPELINE_STAGES.length - 1) {
+    return PIPELINE_STAGES[currentIndex + 1]
+  }
+  return null
+}
+
+export function canAdvanceStage(lead: LeadEntry): boolean {
+  return getNextStage(lead) !== null
+}
+
+export function getStageCompletion(lead: LeadEntry, stage: PipelineStage): StageCompletion {
+  return lead.stage_completion[stage] || {
+    stage,
+    fields_filled: [],
+    total_fields: 0,
+    completion_percentage: 0,
+  }
+}
+
+export function updateQualification(lead: LeadEntry, data: Partial<QualificationData>): LeadEntry {
+  const now = new Date().toISOString()
+  const updated = normalizeLead({
+    ...lead,
+    qualification: {
+      ...lead.qualification,
+      ...data,
+      qualified_at: data.qualified_at || lead.qualification.qualified_at || now,
+    },
+    updated_at: now,
+  })
+
+  updated.timeline = [
+    ...lead.timeline,
+    buildTimelineEvent("edited", "Informações de qualificação atualizadas.", now),
+  ]
+
+  return updated
+}
+
+export function updateOpportunity(lead: LeadEntry, data: Partial<OpportunityData>): LeadEntry {
+  const now = new Date().toISOString()
+  const updated = normalizeLead({
+    ...lead,
+    opportunity: {
+      ...lead.opportunity,
+      ...data,
+      updated_at: now,
+    },
+    updated_at: now,
+  })
+
+  updated.timeline = [
+    ...lead.timeline,
+    buildTimelineEvent("edited", "Dados da oportunidade atualizados.", now),
+  ]
+
+  return updated
+}
+
+export function updateCommunication(lead: LeadEntry, data: Partial<CommunicationData>): LeadEntry {
+  const now = new Date().toISOString()
+  const updated = normalizeLead({
+    ...lead,
+    communication: {
+      ...lead.communication,
+      ...data,
+    },
+    updated_at: now,
+  })
+
   return updated
 }
 
