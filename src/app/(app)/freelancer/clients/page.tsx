@@ -4,13 +4,10 @@ import { useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import {
   ArrowUpRight,
-  BarChart3,
   CalendarClock,
   Check,
   Clock3,
   ExternalLink,
-  LayoutGrid,
-  List,
   Mail,
   MessageCircle,
   Pencil,
@@ -30,6 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -67,7 +65,6 @@ import {
 } from "@/lib/clients/store"
 import { cn } from "@/lib/utils"
 
-type ViewMode = "cards" | "table"
 type SortMode = "recent" | "name" | "delivery" | "plan"
 
 const planOptions: MaintenancePlan[] = ["none", "essential", "professional", "growth"]
@@ -136,20 +133,6 @@ function Metric({ label, value, icon: Icon, hint }: { label: string; value: stri
   )
 }
 
-function TinyBar({ label, value, max }: { label: string; value: number; max: number }) {
-  const width = max ? Math.max(8, Math.round((value / max) * 100)) : 0
-  return (
-    <div className="space-y-1.5">
-      <div className="flex justify-between gap-3 text-xs">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-medium">{value}</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-foreground" style={{ width: `${width}%` }} />
-      </div>
-    </div>
-  )
-}
 
 function ClientFormSheet({
   open,
@@ -239,31 +222,6 @@ function FormBlock({ title, children }: { title: string; children: React.ReactNo
   return <section className="grid gap-3 rounded-lg border bg-muted/10 p-4"><h3 className="text-sm font-semibold text-foreground">{title}</h3><div className="grid gap-3 sm:grid-cols-2">{children}</div></section>
 }
 
-function ClientCard({ client, onOpen }: { client: ClientEntry; onOpen: (client: ClientEntry) => void }) {
-  return (
-    <Card className="transition-colors hover:bg-muted/25">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-foreground text-xs font-semibold text-background">{getInitials(client.name)}</div>
-            <div className="min-w-0">
-              <h2 className="truncate text-sm font-semibold">{client.name}</h2>
-              <p className="truncate text-xs text-muted-foreground">{client.company || client.projectName}</p>
-            </div>
-          </div>
-          <Badge variant="outline" className={cn("font-normal", planClass[client.plan])}>{PLAN_LABEL[client.plan]}</Badge>
-        </div>
-        <div className="mt-5 grid gap-3 text-sm">
-          <Info label="Projeto" value={client.projectName} />
-          <Info label="Entrega" value={formatDate(client.projectDeliveryDate)} />
-          <Info label="Garantia" value={getWarrantyLabel(client)} active={isWarrantyActive(client)} />
-          <Info label="Ultima interacao" value={formatDate(getLastInteraction(client))} />
-        </div>
-        <Button className="mt-5 w-full" variant="outline" onClick={() => onOpen(client)}>Abrir perfil</Button>
-      </CardContent>
-    </Card>
-  )
-}
 
 function Info({ label, value, active }: { label: string; value: string; active?: boolean }) {
   return (
@@ -515,7 +473,6 @@ export default function ClientsPage() {
   const [planFilter, setPlanFilter] = useState<MaintenancePlan | "all">("all")
   const [statusFilter, setStatusFilter] = useState<ClientStatus | "all">("all")
   const [sort, setSort] = useState<SortMode>("recent")
-  const [viewMode, setViewMode] = useState<ViewMode>("cards")
 
   const viewing = clients.find((client) => client.id === viewingId) ?? null
 
@@ -548,10 +505,6 @@ export default function ClientsPage() {
         return getLastInteraction(b).localeCompare(getLastInteraction(a))
       })
   }, [clients, planFilter, query, sort, statusFilter])
-
-  const planCounts = planOptions.map((plan) => ({ label: PLAN_LABEL[plan], value: clients.filter((client) => client.plan === plan).length }))
-  const opportunityCounts = opportunityStatuses.map((status) => ({ label: OPPORTUNITY_STATUS_LABEL[status], value: clients.flatMap((client) => client.opportunities).filter((item) => item.status === status).length }))
-  const mrrMax = Math.max(...planCounts.map((item) => item.value), 1)
 
   function persist(next: ClientEntry[]) {
     saveClients(next)
@@ -586,6 +539,7 @@ export default function ClientsPage() {
           }
         />
 
+        {/* Stats Bar */}
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
           <Metric label="Clientes ativos" value={metrics.active} icon={Users2} hint="Em relacionamento" />
           <Metric label="Com plano" value={metrics.withPlan} icon={ShieldCheck} hint="Recorrencia ativa" />
@@ -595,66 +549,57 @@ export default function ClientsPage() {
           <Metric label="Oportunidades" value={metrics.opportunities} icon={Sparkles} hint="Pipeline futuro" />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1fr_22rem]">
-          <Card className="py-0">
-            <CardContent className="px-4 py-3">
-              <div className="grid gap-3 lg:grid-cols-[1fr_11rem_11rem_10rem_auto]">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cliente, empresa ou projeto..." className="pl-9" />
-                </div>
-                <select className="h-10 rounded-md border border-input bg-transparent px-3 text-sm" value={planFilter} onChange={(e) => setPlanFilter(e.target.value as MaintenancePlan | "all")}><option value="all">Todos planos</option>{planOptions.map((plan) => <option key={plan} value={plan}>{PLAN_LABEL[plan]}</option>)}</select>
-                <select className="h-10 rounded-md border border-input bg-transparent px-3 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ClientStatus | "all")}><option value="all">Todos status</option>{statusOptions.map((status) => <option key={status} value={status}>{CLIENT_STATUS_LABEL[status]}</option>)}</select>
-                <select className="h-10 rounded-md border border-input bg-transparent px-3 text-sm" value={sort} onChange={(e) => setSort(e.target.value as SortMode)}><option value="recent">Mais recentes</option><option value="name">Nome</option><option value="delivery">Entrega</option><option value="plan">Plano</option></select>
-                <div className="flex rounded-md border p-1">
-                  <Button variant={viewMode === "cards" ? "secondary" : "ghost"} size="icon-sm" onClick={() => setViewMode("cards")} aria-label="Cards"><LayoutGrid /></Button>
-                  <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="icon-sm" onClick={() => setViewMode("table")} aria-label="Tabela"><List /></Button>
-                </div>
+        {/* Filters */}
+        <Card className="py-0">
+          <CardContent className="px-4 py-3">
+            <div className="grid gap-3 lg:grid-cols-[1fr_11rem_11rem_10rem]">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cliente, empresa ou projeto..." className="pl-9" />
               </div>
-            </CardContent>
-          </Card>
+              <select className="h-10 rounded-md border border-input bg-transparent px-3 text-sm" value={planFilter} onChange={(e) => setPlanFilter(e.target.value as MaintenancePlan | "all")}><option value="all">Todos planos</option>{planOptions.map((plan) => <option key={plan} value={plan}>{PLAN_LABEL[plan]}</option>)}</select>
+              <select className="h-10 rounded-md border border-input bg-transparent px-3 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as ClientStatus | "all")}><option value="all">Todos status</option>{statusOptions.map((status) => <option key={status} value={status}>{CLIENT_STATUS_LABEL[status]}</option>)}</select>
+              <select className="h-10 rounded-md border border-input bg-transparent px-3 text-sm" value={sort} onChange={(e) => setSort(e.target.value as SortMode)}><option value="recent">Mais recentes</option><option value="name">Nome</option><option value="delivery">Entrega</option><option value="plan">Plano</option></select>
+            </div>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><BarChart3 className="size-4" />Dashboard pos-venda</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">{planCounts.map((item) => <TinyBar key={item.label} label={item.label} value={item.value} max={mrrMax} />)}</div>
-              <div className="border-t pt-4 space-y-3">{opportunityCounts.map((item) => <TinyBar key={item.label} label={item.label} value={item.value} max={Math.max(...opportunityCounts.map((candidate) => candidate.value), 1)} />)}</div>
-            </CardContent>
-          </Card>
-        </div>
-
+        {/* Table */}
         {filtered.length === 0 ? (
           <div className="rounded-lg border border-dashed bg-muted/15 px-6 py-14 text-center">
             <Users2 className="mx-auto size-9 text-muted-foreground" />
             <h2 className="mt-4 font-semibold">Nenhum cliente encontrado</h2>
             <p className="mt-1 text-sm text-muted-foreground">Aprovacoes de propostas tambem criam clientes automaticamente.</p>
           </div>
-        ) : viewMode === "cards" ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((client) => <ClientCard key={client.id} client={client} onOpen={(item) => setViewingId(item.id)} />)}
-          </div>
         ) : (
           <Card className="overflow-hidden py-0">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[920px] text-sm">
-                <thead className="border-b bg-muted/30 text-left text-xs text-muted-foreground">
-                  <tr><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Empresa</th><th className="px-4 py-3">Projeto</th><th className="px-4 py-3">Entrega</th><th className="px-4 py-3">Plano</th><th className="px-4 py-3">Garantia</th><th className="px-4 py-3">Ultima interacao</th><th className="px-4 py-3" /></tr>
-                </thead>
-                <tbody>
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="hidden sm:table-cell">Cliente</TableHead>
+                    <TableHead className="hidden lg:table-cell">Empresa</TableHead>
+                    <TableHead>Projeto</TableHead>
+                    <TableHead className="hidden md:table-cell">Plano</TableHead>
+                    <TableHead className="hidden lg:table-cell">Garantia</TableHead>
+                    <TableHead className="hidden lg:table-cell">Última interação</TableHead>
+                    <TableHead className="text-right">Ação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filtered.map((client) => (
-                    <tr key={client.id} className="border-b last:border-b-0">
-                      <td className="px-4 py-3 font-medium">{client.name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{client.company || "-"}</td>
-                      <td className="px-4 py-3">{client.projectName}</td>
-                      <td className="px-4 py-3">{formatDate(client.projectDeliveryDate)}</td>
-                      <td className="px-4 py-3"><Badge variant="outline" className={cn("font-normal", planClass[client.plan])}>{PLAN_LABEL[client.plan]}</Badge></td>
-                      <td className="px-4 py-3">{getWarrantyLabel(client)}</td>
-                      <td className="px-4 py-3">{formatDate(getLastInteraction(client))}</td>
-                      <td className="px-4 py-3 text-right"><Button size="sm" variant="outline" onClick={() => setViewingId(client.id)}>Abrir</Button></td>
-                    </tr>
+                    <TableRow key={client.id} onClick={() => setViewingId(client.id)} className="cursor-pointer">
+                      <TableCell className="hidden sm:table-cell font-medium">{client.name}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">{client.company || "-"}</TableCell>
+                      <TableCell className="text-sm">{client.projectName}</TableCell>
+                      <TableCell className="hidden md:table-cell"><Badge variant="outline" className={cn("font-normal text-xs", planClass[client.plan])}>{PLAN_LABEL[client.plan]}</Badge></TableCell>
+                      <TableCell className="hidden lg:table-cell text-xs">{getWarrantyLabel(client)}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">{formatDate(getLastInteraction(client))}</TableCell>
+                      <TableCell className="text-right"><Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setViewingId(client.id) }}>Abrir</Button></TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </Card>
         )}
