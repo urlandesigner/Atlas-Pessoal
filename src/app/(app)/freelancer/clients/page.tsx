@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   ArrowUpRight,
   CalendarClock,
@@ -65,6 +66,11 @@ import {
   type RequestCategory,
   type RequestStatus,
 } from "@/lib/clients/store"
+import {
+  getProposalsServerSnapshot,
+  getProposalsSnapshot,
+  subscribeProposalsStore,
+} from "@/lib/proposals/store"
 import { cn } from "@/lib/utils"
 
 type SortMode = "recent" | "name" | "delivery" | "plan"
@@ -467,7 +473,9 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 }
 
 export default function ClientsPage() {
+  const router = useRouter()
   const clients = useSyncExternalStore(subscribeClientsStore, getClientsSnapshot, getClientsServerSnapshot)
+  const proposals = useSyncExternalStore(subscribeProposalsStore, getProposalsSnapshot, getProposalsServerSnapshot)
   const [isAdding, setIsAdding] = useState(false)
   const [editing, setEditing] = useState<ClientEntry | null>(null)
   const [viewingId, setViewingId] = useState<string | null>(null)
@@ -477,6 +485,21 @@ export default function ClientsPage() {
   const [sort, setSort] = useState<SortMode>("recent")
 
   const viewing = clients.find((client) => client.id === viewingId) ?? null
+
+  // Resolve the proposal linked to each client — explicit proposalId first,
+  // then fall back to matching by clientId or shared leadId (covers proposals
+  // created before the bidirectional link existed).
+  const proposalByClient = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const client of clients) {
+      const match =
+        (client.proposalId && proposals.find((p) => p.id === client.proposalId)) ||
+        proposals.find((p) => p.clientId === client.id) ||
+        (client.leadId && proposals.find((p) => p.leadId === client.leadId))
+      if (match) map.set(client.id, match.id)
+    }
+    return map
+  }, [clients, proposals])
 
   const metrics = useMemo(() => {
     const withPlan = clients.filter((client) => client.plan !== "none")
@@ -596,12 +619,12 @@ export default function ClientsPage() {
                       <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">{client.company || "-"}</TableCell>
                       <TableCell className="text-sm">{client.projectName}</TableCell>
                       <TableCell className="hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
-                        {client.proposalId ? (
-                          <Link href={`/freelancer/proposals?view=${client.proposalId}`} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-foreground transition-colors hover:border-foreground/30">
+                        {proposalByClient.get(client.id) ? (
+                          <Link href={`/freelancer/proposals?view=${proposalByClient.get(client.id)}`} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-foreground transition-colors hover:border-foreground/30">
                             <FileText className="size-3" /> Proposta
                           </Link>
                         ) : (
-                          <button onClick={() => {}} className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
+                          <button onClick={() => router.push(`/freelancer/proposals?clientId=${client.id}&new=1`)} className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
                             <FilePlus2 className="size-3.5" /> Criar
                           </button>
                         )}

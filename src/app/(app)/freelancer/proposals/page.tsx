@@ -65,6 +65,7 @@ import {
   saveClients,
   subscribeClientsStore,
   upsertClientFromApprovedProposal,
+  type ClientEntry,
 } from "@/lib/clients/store"
 import {
   getProjectsSnapshot,
@@ -157,6 +158,20 @@ function buildProposalFormFromLead(lead: LeadEntry): ProposalForm {
     title: clientName,
     objective: lead.qualification.project_objective?.trim() || "",
     totalValue: lead.opportunity.estimated_value ? String(lead.opportunity.estimated_value) : "",
+    proposalDate: new Date().toISOString().split("T")[0],
+  }
+}
+
+function buildProposalFormFromClient(client: ClientEntry): ProposalForm {
+  const clientName = client.company || client.name || ""
+  return {
+    ...EMPTY_PROPOSAL_FORM,
+    leadId: client.leadId ?? "",
+    clientId: client.id,
+    clientName,
+    title: clientName,
+    objective: client.projectName?.trim() || "",
+    totalValue: client.contractedValue ? String(client.contractedValue) : "",
     proposalDate: new Date().toISOString().split("T")[0],
   }
 }
@@ -937,6 +952,7 @@ export default function ProposalsPage() {
     if (typeof window === "undefined") return
     const params = new URLSearchParams(window.location.search)
     const leadId = params.get("leadId")
+    const clientId = params.get("clientId")
     const isNew = params.get("new")
     const viewId = params.get("view")
     let consumed = false
@@ -952,6 +968,14 @@ export default function ProposalsPage() {
       const lead = getLeadsSnapshot().find((item) => item.id === leadId)
       if (lead) {
         setPrefillForm(buildProposalFormFromLead(lead))
+        setIsCreating(true)
+        consumed = true
+      }
+    }
+    if (isNew && clientId) {
+      const client = getClientsSnapshot().find((item) => item.id === clientId)
+      if (client) {
+        setPrefillForm(buildProposalFormFromClient(client))
         setIsCreating(true)
         consumed = true
       }
@@ -1189,7 +1213,7 @@ export default function ProposalsPage() {
       </div>
 
       <ProposalEditor
-        key={`create-${isCreating ? prefillForm?.leadId || "open" : "closed"}`}
+        key={`create-${isCreating ? prefillForm?.leadId || prefillForm?.clientId || "open" : "closed"}`}
         open={isCreating}
         mode="create"
         initialForm={prefillForm ?? EMPTY_PROPOSAL_FORM}
