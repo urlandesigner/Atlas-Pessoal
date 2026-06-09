@@ -35,10 +35,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
   computeLeadStats,
-  createLeadFromForm,
-  createLeadFormFromEntry,
+  createLeadFromQuickForm,
   emitLeadsChange,
-  EMPTY_LEAD_FORM,
+  EMPTY_QUICK_LEAD_FORM,
   getLeadsServerSnapshot,
   getLeadsSnapshot,
   LEAD_ORIGIN_LABEL,
@@ -48,6 +47,7 @@ import {
   moveLeadToStatus,
   PROJECT_TYPE_LABEL,
   PROJECT_TYPE_OPTIONS,
+  PIPELINE_STAGE_LABEL,
   saveLeads,
   subscribeLeadsStore,
   updateLeadFromForm,
@@ -56,6 +56,7 @@ import {
   type LeadOrigin,
   type LeadStatus,
   type ProjectType,
+  type QuickLeadForm,
 } from "@/lib/crm/store"
 
 // ─── Badge maps ────────────────────────────────────────────────────────────
@@ -168,21 +169,21 @@ interface LeadSheetProps {
   open: boolean
   onClose: () => void
   editing: LeadEntry | null
-  onSave: (form: LeadForm) => void
+  onSave: (form: QuickLeadForm) => void
 }
 
 function LeadSheet({ open, onClose, editing, onSave }: LeadSheetProps) {
-  const [form, setForm] = useState<LeadForm>(EMPTY_LEAD_FORM)
+  const [form, setForm] = useState<QuickLeadForm>(EMPTY_QUICK_LEAD_FORM)
 
   // Reset form when sheet opens
   const prevOpen = useRef(false)
   if (open && !prevOpen.current) {
-    const next = editing ? createLeadFormFromEntry(editing) : EMPTY_LEAD_FORM
+    const next = EMPTY_QUICK_LEAD_FORM
     if (JSON.stringify(next) !== JSON.stringify(form)) setForm(next)
   }
   prevOpen.current = open
 
-  function set(key: keyof LeadForm, value: string) {
+  function set(key: keyof QuickLeadForm, value: string) {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
@@ -199,219 +200,59 @@ function LeadSheet({ open, onClose, editing, onSave }: LeadSheetProps) {
         </SheetHeader>
 
         <ScrollArea className="flex-1">
-          <form id="lead-form" onSubmit={handleSubmit} className="px-6 py-5 space-y-6">
-            {/* Contato */}
+          <form id="lead-form" onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+            <p className="text-xs text-muted-foreground mb-4">
+              Preencha o essencial. Outras informações podem ser adicionadas depois.
+            </p>
+
+            {/* Empresa - Obrigatório */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-                Dados do Contato
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">
-                    Nome <span className="text-rose-500">*</span>
-                  </label>
-                  <Input
-                    value={form.name}
-                    onChange={(e) => set("name", e.target.value)}
-                    placeholder="Nome completo"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">E-mail</label>
-                  <Input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => set("email", e.target.value)}
-                    placeholder="email@exemplo.com"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Telefone</label>
-                  <Input
-                    value={form.phone}
-                    onChange={(e) => set("phone", e.target.value)}
-                    placeholder="(27) 99999-9999"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">WhatsApp</label>
-                  <Input
-                    value={form.whatsapp}
-                    onChange={(e) => set("whatsapp", e.target.value)}
-                    placeholder="+55 27 99999-9999"
-                  />
-                </div>
-              </div>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                Empresa <span className="text-rose-500">*</span>
+              </label>
+              <Input
+                value={form.company}
+                onChange={(e) => set("company", e.target.value)}
+                placeholder="Nome da empresa"
+                required
+              />
             </div>
 
-            <Separator />
-
-            {/* Empresa */}
+            {/* Segmento */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-                Dados da Empresa
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">Empresa</label>
-                  <Input
-                    value={form.company}
-                    onChange={(e) => set("company", e.target.value)}
-                    placeholder="Nome da empresa"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Segmento</label>
-                  <Input
-                    value={form.segment}
-                    onChange={(e) => set("segment", e.target.value)}
-                    placeholder="Ex: Saúde, Jurídico…"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Cidade</label>
-                  <Input
-                    value={form.city}
-                    onChange={(e) => set("city", e.target.value)}
-                    placeholder="Cidade"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Estado</label>
-                  <Input
-                    value={form.state}
-                    onChange={(e) => set("state", e.target.value)}
-                    placeholder="ES"
-                    maxLength={2}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Instagram</label>
-                  <Input
-                    value={form.instagram}
-                    onChange={(e) => set("instagram", e.target.value)}
-                    placeholder="@perfil"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">Site atual</label>
-                  <Input
-                    value={form.current_site}
-                    onChange={(e) => set("current_site", e.target.value)}
-                    placeholder="https://..."
-                  />
-                </div>
-              </div>
+              <label className="text-xs text-muted-foreground mb-1 block">Segmento</label>
+              <Input
+                value={form.segment}
+                onChange={(e) => set("segment", e.target.value)}
+                placeholder="Ex: Saúde, Jurídico, Varejo…"
+              />
             </div>
 
-            <Separator />
-
-            {/* Oportunidade */}
+            {/* Cidade */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-                Oportunidade
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">Tipo de projeto</label>
-                  <select
-                    value={form.project_type}
-                    onChange={(e) => set("project_type", e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="">Selecionar…</option>
-                    {PROJECT_TYPE_OPTIONS.map((t) => (
-                      <option key={t} value={t}>
-                        {PROJECT_TYPE_LABEL[t]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Prazo desejado</label>
-                  <Input
-                    value={form.desired_deadline}
-                    onChange={(e) => set("desired_deadline", e.target.value)}
-                    placeholder="Ex: 30 dias"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Faixa de investimento</label>
-                  <Input
-                    value={form.investment_range}
-                    onChange={(e) => set("investment_range", e.target.value)}
-                    placeholder="Ex: R$ 3k–6k"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Valor estimado (R$)</label>
-                  <Input
-                    value={form.estimated_value}
-                    onChange={(e) => set("estimated_value", e.target.value)}
-                    placeholder="4500"
-                    inputMode="decimal"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
-                  <Input
-                    value={form.responsible}
-                    onChange={(e) => set("responsible", e.target.value)}
-                    placeholder="Seu nome"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">Objetivo do projeto</label>
-                  <Textarea
-                    value={form.project_objective}
-                    onChange={(e) => set("project_objective", e.target.value)}
-                    placeholder="Descreva brevemente o objetivo…"
-                    className="resize-none"
-                    rows={3}
-                  />
-                </div>
-              </div>
+              <label className="text-xs text-muted-foreground mb-1 block">Cidade</label>
+              <Input
+                value={form.city}
+                onChange={(e) => set("city", e.target.value)}
+                placeholder="Onde está localizada"
+              />
             </div>
 
-            <Separator />
-
-            {/* Origem & Status */}
+            {/* Origem */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-                Origem & Status
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Origem do lead</label>
-                  <select
-                    value={form.origin}
-                    onChange={(e) => set("origin", e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="">Selecionar…</option>
-                    {LEAD_ORIGIN_OPTIONS.map((o) => (
-                      <option key={o} value={o}>
-                        {LEAD_ORIGIN_LABEL[o]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Status</label>
-                  <select
-                    value={form.status}
-                    onChange={(e) => set("status", e.target.value as LeadStatus)}
-                    className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    {LEAD_STATUS_ORDER.map((s) => (
-                      <option key={s} value={s}>
-                        {LEAD_STATUS_LABEL[s]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <label className="text-xs text-muted-foreground mb-1 block">Origem do Lead</label>
+              <select
+                value={form.origin}
+                onChange={(e) => set("origin", e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">Selecionar…</option>
+                {LEAD_ORIGIN_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {LEAD_ORIGIN_LABEL[o]}
+                  </option>
+                ))}
+              </select>
             </div>
           </form>
         </ScrollArea>
@@ -803,16 +644,11 @@ export default function CrmPage() {
     setSheetOpen(true)
   }
 
-  function handleSave(form: LeadForm) {
+  function handleSave(form: QuickLeadForm) {
     const current = getLeadsSnapshot()
-    let updated: LeadEntry[]
-    if (editingLead) {
-      updated = current.map((l) =>
-        l.id === editingLead.id ? updateLeadFromForm(l, form) : l
-      )
-    } else {
-      updated = [createLeadFromForm(form), ...current]
-    }
+    // Quick form is only for creating new leads
+    const newLead = createLeadFromQuickForm(form)
+    const updated = [newLead, ...current]
     saveLeads(updated)
     emitLeadsChange()
     setSheetOpen(false)
