@@ -18,8 +18,8 @@ import {
   RotateCcw,
   Save,
   Trash2,
-  Trophy,
   User,
+  UserPlus,
   UserRound,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,7 @@ import {
   getPrevStage,
   LEAD_ORIGIN_LABEL,
   LEAD_ORIGIN_OPTIONS,
+  linkClientToLead,
   markLeadLost,
   moveLeadToStage,
   PIPELINE_STAGE_LABEL,
@@ -48,6 +49,12 @@ import {
   type PipelineStage,
   type ProjectType,
 } from "@/lib/crm/store"
+import {
+  emitClientsChange,
+  getClientsSnapshot,
+  saveClients,
+  upsertClientFromLead,
+} from "@/lib/clients/store"
 import { PipelineTracker, StageBadge } from "@/components/crm"
 
 // ─── Shared field primitives ──────────────────────────────────────────────
@@ -311,6 +318,16 @@ export default function LeadDetailPage() {
     handleUpdate(reopenLead(current))
   }
 
+  function handleConvertToClient(current: LeadEntry) {
+    if (current.client_id) return
+    const label = current.prospect.company || current.qualification.contact_name || "este lead"
+    if (!confirm(`Converter "${label}" em cliente cadastrado?`)) return
+    const { clients: nextClients, clientId } = upsertClientFromLead(getClientsSnapshot(), current)
+    saveClients(nextClients)
+    emitClientsChange()
+    handleUpdate(linkClientToLead(current, clientId))
+  }
+
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
@@ -355,10 +372,8 @@ export default function LeadDetailPage() {
           </Link>
 
           <div className="flex items-center gap-2">
-            {/* Generate proposal button */}
-            <Link
-              href={`/freelancer/proposals?leadId=${lead.id}&clientName=${encodeURIComponent(lead.name)}${lead.company ? `&company=${encodeURIComponent(lead.company)}` : ""}`}
-            >
+            {/* Generate proposal button — opens the pre-filled proposal editor */}
+            <Link href={`/freelancer/proposals?leadId=${lead.id}&new=1`}>
               <Button size="sm" variant="outline" className="gap-1.5">
                 <FileText className="size-3.5" />
                 Gerar Proposta
@@ -505,11 +520,25 @@ export default function LeadDetailPage() {
                       Avançar para {PIPELINE_STAGE_LABEL[nextStage]}
                       <ArrowRight className="size-3.5" />
                     </Button>
+                  ) : lead.client_id ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      render={<Link href="/freelancer/clients" />}
+                      className="h-7 gap-1.5 px-3 text-xs"
+                    >
+                      <UserRound className="size-3.5" />
+                      Ver cliente
+                    </Button>
                   ) : (
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-                      <Trophy className="size-3.5" />
-                      Cliente conquistado
-                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => handleConvertToClient(lead)}
+                      className="h-7 gap-1.5 px-3 text-xs"
+                    >
+                      <UserPlus className="size-3.5" />
+                      Converter em cliente
+                    </Button>
                   )}
                   <Button
                     size="sm"

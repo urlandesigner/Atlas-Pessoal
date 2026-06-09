@@ -25,6 +25,7 @@ export interface ProposalEntry {
   clientId: string | null
   clientName: string
   projectId: string | null
+  leadId: string | null
   proposalDate: string
   validUntil: string
   objective: string
@@ -47,6 +48,7 @@ export interface ProposalForm {
   clientId: string
   clientName: string
   projectId: string
+  leadId: string
   proposalDate: string
   validUntil: string
   objective: string
@@ -106,6 +108,7 @@ export const EMPTY_PROPOSAL_FORM: ProposalForm = {
   clientId: "",
   clientName: "",
   projectId: "",
+  leadId: "",
   proposalDate: new Date().toISOString().split("T")[0],
   validUntil: "",
   objective: "",
@@ -260,6 +263,7 @@ function normalizeProposal(entry: Partial<ProposalEntry>): ProposalEntry {
     clientId: entry.clientId || null,
     clientName: entry.clientName?.trim() || "Cliente não informado",
     projectId: entry.projectId || null,
+    leadId: entry.leadId || null,
     proposalDate,
     validUntil: entry.validUntil || "",
     objective: entry.objective?.trim() || "",
@@ -344,6 +348,7 @@ export function createProposalForm(entry: ProposalEntry): ProposalForm {
     clientId: entry.clientId ?? "",
     clientName: entry.clientName === "Cliente não informado" ? "" : entry.clientName,
     projectId: entry.projectId ?? "",
+    leadId: entry.leadId ?? "",
     proposalDate: entry.proposalDate,
     validUntil: entry.validUntil,
     objective: entry.objective,
@@ -367,6 +372,7 @@ export function createProposalFromForm(form: ProposalForm): ProposalEntry {
     clientId: form.clientId || null,
     clientName: form.clientName,
     projectId: form.projectId || null,
+    leadId: form.leadId || null,
     proposalDate: form.proposalDate,
     validUntil: form.validUntil,
     objective: form.objective,
@@ -398,6 +404,7 @@ export function updateProposalInCollection(
           clientId: form.clientId || null,
           clientName: form.clientName,
           projectId: form.projectId || null,
+          leadId: form.leadId || null,
           proposalDate: form.proposalDate,
           validUntil: form.validUntil,
           objective: form.objective,

@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import { Download, Upload, ShieldCheck, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PageHeader } from "@/components/ui/page-header"
 
 /**
  * Página de backup / restauração dos dados locais (localStorage).
@@ -127,13 +128,10 @@ export default function BackupPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Backup de dados</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Seus dados ficam salvos apenas neste navegador. Exporte um arquivo para preservá-los ou
-          migrá-los para os sistemas Profissional e Pessoal.
-        </p>
-      </div>
+      <PageHeader
+        title="Backup de dados"
+        description="Seus dados ficam salvos apenas neste navegador. Exporte um arquivo para preservá-los ou migrá-los para os sistemas Profissional e Pessoal."
+      />
 
       <Card>
         <CardHeader>

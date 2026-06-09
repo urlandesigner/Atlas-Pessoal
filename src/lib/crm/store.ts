@@ -168,6 +168,7 @@ export interface LeadEntry {
   // Relationships
   proposal_ids: string[]
   project_ids: string[]
+  client_id: string | null
 
   // Legacy fields for backward compatibility
   name: string
@@ -603,6 +604,7 @@ function normalizeLead(entry: Partial<LeadEntry>): LeadEntry {
     // Relationships
     proposal_ids: Array.isArray(entry.proposal_ids) ? entry.proposal_ids : [],
     project_ids: Array.isArray(entry.project_ids) ? entry.project_ids : [],
+    client_id: entry.client_id ?? null,
 
     // Legacy fields for backward compatibility
     name: entry.name?.trim() ?? "",
@@ -917,10 +919,31 @@ export function updateLeadBriefing(lead: LeadEntry, briefing: BriefingData): Lea
 
 export function linkProposalToLead(lead: LeadEntry, proposalId: string): LeadEntry {
   const now = new Date().toISOString()
-  const updated = normalizeLead({ ...lead, proposal_id: proposalId, updated_at: now })
+  const proposal_ids = lead.proposal_ids.includes(proposalId)
+    ? lead.proposal_ids
+    : [...lead.proposal_ids, proposalId]
+  const updated = normalizeLead({
+    ...lead,
+    proposal_id: proposalId,
+    proposal_ids,
+    updated_at: now,
+  })
   updated.timeline = [
     ...lead.timeline,
     buildTimelineEvent("proposal_linked", "Proposta comercial vinculada ao lead.", now),
+  ]
+  updated.comments = lead.comments
+  updated.activities = lead.activities
+  return updated
+}
+
+// Link a registered client to the lead (after converting it on the "client" stage).
+export function linkClientToLead(lead: LeadEntry, clientId: string): LeadEntry {
+  const now = new Date().toISOString()
+  const updated = normalizeLead({ ...lead, client_id: clientId, updated_at: now })
+  updated.timeline = [
+    ...lead.timeline,
+    buildTimelineEvent("stage_changed", "Lead convertido em cliente cadastrado.", now),
   ]
   updated.comments = lead.comments
   updated.activities = lead.activities

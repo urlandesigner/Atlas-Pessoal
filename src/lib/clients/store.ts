@@ -2,6 +2,7 @@
 
 import type { ProposalEntry } from "@/lib/proposals/store"
 import type { ProjectEntry } from "@/lib/projects/store"
+import { PROJECT_TYPE_LABEL, type LeadEntry, type ProjectType } from "@/lib/crm/store"
 
 export type MaintenancePlan = "none" | "essential" | "professional" | "growth"
 export type ClientStatus = "active" | "onboarding" | "paused" | "inactive"
@@ -74,6 +75,7 @@ export interface ClientComment {
 
 export interface ClientEntry {
   id: string
+  leadId: string | null
   name: string
   company: string | null
   phone: string | null
@@ -300,6 +302,7 @@ function normalizeClient(client: Partial<ClientEntry>): ClientEntry {
 
   return {
     id: client.id ?? createId("client"),
+    leadId: client.leadId || null,
     name,
     company: client.company?.trim() || null,
     phone: client.phone?.trim() || null,
@@ -593,6 +596,65 @@ export function upsertClientFromApprovedProposal(
     }),
     ...clients,
   ]
+}
+
+// Build a client record from a CRM lead (used when converting on the "client" stage).
+export function createClientFromLead(lead: LeadEntry): ClientEntry {
+  const now = new Date().toISOString()
+  const name =
+    lead.qualification.contact_name?.trim() ||
+    lead.prospect.company?.trim() ||
+    lead.name?.trim() ||
+    "Cliente sem nome"
+  const projectType = lead.qualification.project_type
+    ? PROJECT_TYPE_LABEL[lead.qualification.project_type as ProjectType]
+    : ""
+  const value =
+    lead.opportunity.closed_value ??
+    lead.opportunity.quote_value ??
+    lead.opportunity.estimated_value ??
+    0
+
+  return normalizeClient({
+    leadId: lead.id,
+    name,
+    company: lead.prospect.company?.trim() || null,
+    phone: (lead.qualification.phone || lead.communication.phone)?.trim() || null,
+    whatsapp: lead.communication.whatsapp?.trim() || null,
+    email: (lead.qualification.email || lead.communication.email)?.trim() || null,
+    status: "active",
+    projectName: lead.qualification.project_objective?.trim() || lead.prospect.company?.trim() || name,
+    projectType: projectType || "Projeto digital",
+    contractedValue: value,
+    created_at: now,
+    entryDate: now.slice(0, 10),
+    timeline: [
+      createTimelineEntry(
+        "project_started",
+        "Convertido de lead",
+        "Cliente criado a partir de um lead do CRM."
+      ),
+    ],
+  })
+}
+
+// Create the client from a lead unless one is already linked (dedup by id, leadId or company).
+export function upsertClientFromLead(
+  clients: ClientEntry[],
+  lead: LeadEntry
+): { clients: ClientEntry[]; clientId: string } {
+  const company = lead.prospect.company?.trim().toLowerCase()
+  const existing = clients.find(
+    (client) =>
+      (lead.client_id && client.id === lead.client_id) ||
+      client.leadId === lead.id ||
+      (company && client.company && client.company.toLowerCase() === company)
+  )
+  if (existing) {
+    return { clients, clientId: existing.id }
+  }
+  const created = createClientFromLead(lead)
+  return { clients: [created, ...clients], clientId: created.id }
 }
 
 export function getChecklistProgress(client: ClientEntry) {

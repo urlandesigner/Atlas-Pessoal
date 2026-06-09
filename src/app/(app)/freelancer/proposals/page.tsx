@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import {
   ArrowDown,
   ArrowUp,
@@ -21,6 +21,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -67,6 +68,13 @@ import {
 import {
   getProjectsSnapshot,
 } from "@/lib/projects/store"
+import {
+  emitLeadsChange,
+  getLeadsSnapshot,
+  linkProposalToLead,
+  saveLeads,
+  type LeadEntry,
+} from "@/lib/crm/store"
 import { cn } from "@/lib/utils"
 
 type PeriodFilter = "all" | "month" | "quarter" | "year"
@@ -135,6 +143,21 @@ function normalizeSearch(value: string) {
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
+}
+
+function buildProposalFormFromLead(lead: LeadEntry): ProposalForm {
+  const clientName =
+    lead.prospect.company || lead.qualification.contact_name?.trim() || lead.name?.trim() || ""
+  return {
+    ...EMPTY_PROPOSAL_FORM,
+    leadId: lead.id,
+    clientId: lead.client_id ?? "",
+    clientName,
+    title: clientName,
+    objective: lead.qualification.project_objective?.trim() || "",
+    totalValue: lead.opportunity.estimated_value ? String(lead.opportunity.estimated_value) : "",
+    proposalDate: new Date().toISOString().split("T")[0],
+  }
 }
 
 function createPrintHtml(form: ProposalForm | ProposalEntry) {
@@ -900,12 +923,41 @@ export default function ProposalsPage() {
   )
   const clients = useSyncExternalStore(subscribeClientsStore, getClientsSnapshot, getClientsServerSnapshot)
   const [isCreating, setIsCreating] = useState(false)
+  const [prefillForm, setPrefillForm] = useState<ProposalForm | null>(null)
   const [editing, setEditing] = useState<ProposalEntry | null>(null)
   const [viewing, setViewing] = useState<ProposalEntry | null>(null)
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<ProposalStatus | "all">("all")
   const [clientFilter, setClientFilter] = useState("all")
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all")
+
+  // Consume deep-link params: ?leadId&new opens a pre-filled editor, ?view opens a proposal.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    const leadId = params.get("leadId")
+    const isNew = params.get("new")
+    const viewId = params.get("view")
+    let consumed = false
+
+    if (viewId) {
+      const found = getProposalsSnapshot().find((proposal) => proposal.id === viewId)
+      if (found) {
+        setViewing(found)
+        consumed = true
+      }
+    }
+    if (isNew && leadId) {
+      const lead = getLeadsSnapshot().find((item) => item.id === leadId)
+      if (lead) {
+        setPrefillForm(buildProposalFormFromLead(lead))
+        setIsCreating(true)
+        consumed = true
+      }
+    }
+    if (consumed) window.history.replaceState(null, "", window.location.pathname)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const filtered = useMemo(() => {
     const search = normalizeSearch(query)
@@ -959,8 +1011,19 @@ export default function ProposalsPage() {
   }
 
   function handleCreate(form: ProposalForm) {
-    persist([createProposalFromForm(form), ...proposals])
+    const proposal = createProposalFromForm(form)
+    persist([proposal, ...proposals])
+    // Link the proposal back to its originating lead, if any.
+    if (form.leadId) {
+      const leads = getLeadsSnapshot()
+      const nextLeads = leads.map((lead) =>
+        lead.id === form.leadId ? linkProposalToLead(lead, proposal.id) : lead
+      )
+      saveLeads(nextLeads)
+      emitLeadsChange()
+    }
     setIsCreating(false)
+    setPrefillForm(null)
   }
 
   function handleEdit(form: ProposalForm) {
@@ -989,22 +1052,16 @@ export default function ProposalsPage() {
   return (
     <>
       <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              <FileText className="size-3.5" />
-              Comercial
-            </div>
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight">Propostas</h1>
-            <p className="mt-1 text-base text-muted-foreground">
-              Centralize propostas antes da aprovação e futura conversão em projeto.
-            </p>
-          </div>
-          <Button size="sm" onClick={() => setIsCreating(true)}>
-            <Plus data-icon="inline-start" />
-            Criar proposta
-          </Button>
-        </div>
+        <PageHeader
+          title="Propostas"
+          description="Centralize propostas antes da aprovação e futura conversão em projeto."
+          actions={
+            <Button size="sm" onClick={() => setIsCreating(true)}>
+              <Plus data-icon="inline-start" />
+              Criar proposta
+            </Button>
+          }
+        />
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric label="Propostas" value={totals.count} icon={FileText} />
@@ -1122,12 +1179,15 @@ export default function ProposalsPage() {
       </div>
 
       <ProposalEditor
-        key={`create-${isCreating ? "open" : "closed"}`}
+        key={`create-${isCreating ? prefillForm?.leadId || "open" : "closed"}`}
         open={isCreating}
         mode="create"
-        initialForm={EMPTY_PROPOSAL_FORM}
+        initialForm={prefillForm ?? EMPTY_PROPOSAL_FORM}
         clients={clients}
-        onClose={() => setIsCreating(false)}
+        onClose={() => {
+          setIsCreating(false)
+          setPrefillForm(null)
+        }}
         onSubmit={handleCreate}
       />
       <ProposalEditor

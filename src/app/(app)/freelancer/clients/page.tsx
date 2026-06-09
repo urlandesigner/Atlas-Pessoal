@@ -3,6 +3,7 @@
 import { useMemo, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import {
+  ArrowUpRight,
   BarChart3,
   CalendarClock,
   Check,
@@ -24,6 +25,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -334,6 +336,15 @@ function ProfileSheet({
             <Badge variant="outline" className={cn("font-normal", planClass[client.plan])}>{PLAN_LABEL[client.plan]}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">{client.company || "Sem empresa"} · {client.projectName}</p>
+          {client.leadId ? (
+            <Link
+              href={`/crm/${client.leadId}`}
+              className="inline-flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            >
+              <ArrowUpRight className="size-3.5" />
+              Ver lead de origem
+            </Link>
+          ) : null}
         </SheetHeader>
         <ScrollArea className="min-h-0 flex-1">
           <div className="p-5">
@@ -565,14 +576,15 @@ export default function ClientsPage() {
   return (
     <>
       <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground"><Users2 className="size-3.5" />Pos-venda</div>
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight">Clientes</h1>
-            <p className="mt-1 text-sm text-muted-foreground">CRM pos-venda para acompanhar entrega, suporte, garantia, recorrencia e novas oportunidades.</p>
-          </div>
-          <Button size="sm" onClick={() => setIsAdding(true)}><Plus data-icon="inline-start" />Novo cliente</Button>
-        </div>
+        <PageHeader
+          title="Clientes"
+          description="CRM pos-venda para acompanhar entrega, suporte, garantia, recorrencia e novas oportunidades."
+          actions={
+            <Button size="sm" onClick={() => setIsAdding(true)}>
+              <Plus data-icon="inline-start" />Novo cliente
+            </Button>
+          }
+        />
 
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
           <Metric label="Clientes ativos" value={metrics.active} icon={Users2} hint="Em relacionamento" />

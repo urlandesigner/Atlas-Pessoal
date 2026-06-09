@@ -1,13 +1,13 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import {
   Ban,
   Building2,
-  ExternalLink,
-  Kanban,
-  LayoutList,
+  FilePlus2,
+  FileText,
   MoreHorizontal,
   Plus,
   Search,
@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   DropdownMenu,
@@ -25,6 +26,14 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   Sheet,
   SheetContent,
@@ -42,7 +51,6 @@ import {
   getLeadsSnapshot,
   LEAD_ORIGIN_LABEL,
   LEAD_ORIGIN_OPTIONS,
-  moveLeadToStage,
   PIPELINE_STAGES,
   PIPELINE_STAGE_LABEL,
   saveLeads,
@@ -52,7 +60,7 @@ import {
   type PipelineStage,
   type QuickLeadForm,
 } from "@/lib/crm/store"
-import { StageBadge, STAGE_META } from "@/components/crm"
+import { StageBadge } from "@/components/crm"
 
 // ─── Utilities ─────────────────────────────────────────────────────────────
 
@@ -215,149 +223,32 @@ function LeadSheet({ open, onClose, onSave }: LeadSheetProps) {
   )
 }
 
-// ─── Kanban card ────────────────────────────────────────────────────────────
-
-function KanbanCard({
-  lead,
-  onDragStart,
-  onDelete,
-}: {
-  lead: LeadEntry
-  onDragStart: (id: string) => void
-  onDelete: (id: string) => void
-}) {
-  return (
-    <div
-      draggable
-      onDragStart={() => onDragStart(lead.id)}
-      className="group cursor-grab active:cursor-grabbing"
-    >
-      <Link href={`/crm/${lead.id}`} onClick={(e) => e.stopPropagation()}>
-        <Card className="border border-border/60 transition-shadow hover:border-border hover:shadow-md">
-          <CardContent className="space-y-2 p-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium leading-tight">{leadTitle(lead)}</p>
-                {lead.qualification.contact_name && (
-                  <p className="truncate text-xs text-muted-foreground">
-                    {lead.qualification.contact_name}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  onDelete(lead.id)
-                }}
-                className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
-              >
-                <X className="size-3.5" />
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between pt-1">
-              {lead.prospect.segment ? (
-                <span className="truncate text-xs text-muted-foreground/80">
-                  {lead.prospect.segment}
-                </span>
-              ) : (
-                <span />
-              )}
-              <span className="text-[10px] text-muted-foreground">
-                {formatRelative(lead.created_at)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </Link>
-    </div>
-  )
-}
-
-// ─── Kanban column ──────────────────────────────────────────────────────────
-
-function KanbanColumn({
-  stage,
-  leads,
-  onDragStart,
-  onDrop,
-  onDelete,
-}: {
-  stage: PipelineStage
-  leads: LeadEntry[]
-  onDragStart: (id: string) => void
-  onDrop: (stage: PipelineStage) => void
-  onDelete: (id: string) => void
-}) {
-  const [dragOver, setDragOver] = useState(false)
-  const Icon = STAGE_META[stage].icon
-
-  return (
-    <div className="flex w-[260px] shrink-0 flex-col">
-      <div className="flex items-center justify-between rounded-t-lg border-t-2 border-foreground/15 bg-muted/40 px-3 py-2.5">
-        <div className="flex items-center gap-1.5">
-          <Icon className="size-3.5 text-muted-foreground" strokeWidth={1.75} />
-          <span className="truncate text-xs font-semibold">{PIPELINE_STAGE_LABEL[stage]}</span>
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-            {leads.length}
-          </span>
-        </div>
-      </div>
-
-      <div
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDragOver(true)
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={() => {
-          setDragOver(false)
-          onDrop(stage)
-        }}
-        className={cn(
-          "min-h-[400px] flex-1 space-y-2 rounded-b-lg border border-t-0 p-2 transition-colors",
-          dragOver ? "border-foreground/30 bg-muted/60" : "border-border/40 bg-muted/20"
-        )}
-      >
-        {leads.map((lead) => (
-          <KanbanCard key={lead.id} lead={lead} onDragStart={onDragStart} onDelete={onDelete} />
-        ))}
-
-        {leads.length === 0 && (
-          <div className="flex h-20 items-center justify-center text-xs text-muted-foreground/60">
-            Arraste para cá
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ─── List row ───────────────────────────────────────────────────────────────
 
-function LeadListRow({
+function LeadTableRow({
   lead,
   onDelete,
 }: {
   lead: LeadEntry
   onDelete: (id: string) => void
 }) {
-  return (
-    <Card className="group border-border/60 transition-shadow hover:border-border hover:shadow-sm">
-      <CardContent className="p-0">
-        <div className="flex items-center gap-4 px-4 py-3">
-          <LeadAvatar label={leadTitle(lead)} />
+  const router = useRouter()
+  const href = `/crm/${lead.id}`
 
-          {/* Company + contact */}
-          <div className="min-w-0 flex-[2]">
-            <Link
-              href={`/crm/${lead.id}`}
-              className="block truncate text-sm font-medium underline-offset-2 hover:underline"
-            >
+  return (
+    <TableRow
+      className="group cursor-pointer"
+      onClick={() => router.push(href)}
+    >
+      {/* Company + contact */}
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <LeadAvatar label={leadTitle(lead)} size="sm" />
+          <div className="min-w-0">
+            <span className="block truncate font-medium underline-offset-2 group-hover:underline">
               {leadTitle(lead)}
-            </Link>
-            <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+            </span>
+            <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
               {lead.qualification.contact_name ? (
                 lead.qualification.contact_name
               ) : lead.prospect.segment ? (
@@ -368,82 +259,110 @@ function LeadListRow({
               ) : (
                 "—"
               )}
-            </p>
-          </div>
-
-          {/* Stage */}
-          <div className="hidden min-w-0 flex-1 md:block">
-            {lead.lost ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium leading-5 text-muted-foreground">
-                <Ban className="size-3" strokeWidth={2} />
-                Perdido
-              </span>
-            ) : (
-              <StageBadge stage={lead.status_stage} />
-            )}
-          </div>
-
-          {/* Origin */}
-          <div className="hidden min-w-0 flex-1 lg:block">
-            {lead.prospect.origin ? (
-              <span className="text-xs text-muted-foreground">
-                {LEAD_ORIGIN_LABEL[lead.prospect.origin as LeadOrigin]}
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground/50">—</span>
-            )}
-          </div>
-
-          {/* Date */}
-          <div className="hidden w-20 shrink-0 text-right md:block">
-            <span className="text-xs text-muted-foreground">{formatRelative(lead.created_at)}</span>
-          </div>
-
-          {/* Actions */}
-          <div className="flex shrink-0 items-center gap-1">
-            <Link href={`/crm/${lead.id}`}>
-              <Button variant="ghost" size="icon" className="size-7 opacity-0 group-hover:opacity-100">
-                <ExternalLink className="size-3.5" />
-              </Button>
-            </Link>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 opacity-0 group-hover:opacity-100 data-[popup-open]:opacity-100"
-                  />
-                }
-              >
-                <MoreHorizontal className="size-3.5" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-36">
-                <DropdownMenuItem render={<Link href={`/crm/${lead.id}`} />}>
-                  Abrir
-                </DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onClick={() => onDelete(lead.id)}>
-                  <Trash2 className="size-3.5" />
-                  Excluir
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            </span>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </TableCell>
+
+      {/* Stage */}
+      <TableCell className="hidden md:table-cell">
+        {lead.lost ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium leading-5 text-muted-foreground">
+            <Ban className="size-3" strokeWidth={2} />
+            Perdido
+          </span>
+        ) : (
+          <StageBadge stage={lead.status_stage} />
+        )}
+      </TableCell>
+
+      {/* Origin */}
+      <TableCell className="hidden lg:table-cell">
+        {lead.prospect.origin ? (
+          <span className="text-xs text-muted-foreground">
+            {LEAD_ORIGIN_LABEL[lead.prospect.origin as LeadOrigin]}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground/50">—</span>
+        )}
+      </TableCell>
+
+      {/* Proposal */}
+      <TableCell className="hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
+        {lead.proposal_id ? (
+          <Link
+            href={`/freelancer/proposals?view=${lead.proposal_id}`}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-foreground transition-colors hover:border-foreground/30"
+          >
+            <FileText className="size-3" />
+            Proposta
+          </Link>
+        ) : (
+          <button
+            onClick={() => router.push(`/freelancer/proposals?leadId=${lead.id}&new=1`)}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <FilePlus2 className="size-3.5" />
+            Criar
+          </button>
+        )}
+      </TableCell>
+
+      {/* Date */}
+      <TableCell className="hidden text-right text-xs text-muted-foreground md:table-cell">
+        {formatRelative(lead.created_at)}
+      </TableCell>
+
+      {/* Actions */}
+      <TableCell
+        className="w-px text-right"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 opacity-0 group-hover:opacity-100 data-[popup-open]:opacity-100"
+              />
+            }
+          >
+            <MoreHorizontal className="size-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem render={<Link href={href} />}>Abrir</DropdownMenuItem>
+            {lead.proposal_id ? (
+              <DropdownMenuItem render={<Link href={`/freelancer/proposals?view=${lead.proposal_id}`} />}>
+                <FileText className="size-3.5" />
+                Ver proposta
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                onClick={() => router.push(`/freelancer/proposals?leadId=${lead.id}&new=1`)}
+              >
+                <FilePlus2 className="size-3.5" />
+                Criar proposta
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem variant="destructive" onClick={() => onDelete(lead.id)}>
+              <Trash2 className="size-3.5" />
+              Excluir
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
   )
 }
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
-type ViewMode = "list" | "kanban"
 type StageFilter = PipelineStage | "all" | "lost"
 
 export default function CrmPage() {
   const leads = useSyncExternalStore(subscribeLeadsStore, getLeadsSnapshot, getLeadsServerSnapshot)
 
-  const [view, setView] = useState<ViewMode>("list")
   const [search, setSearch] = useState("")
   const [stageFilter, setStageFilter] = useState<StageFilter>("all")
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -473,8 +392,6 @@ export default function CrmPage() {
       .catch(() => {})
   }, [])
 
-  const dragLeadId = useRef<string | null>(null)
-
   const stats = useMemo(() => computePipelineStats(leads), [leads])
 
   const filtered = useMemo(() => {
@@ -498,14 +415,6 @@ export default function CrmPage() {
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
   }, [leads, search, stageFilter])
 
-  const kanbanByStage = useMemo(() => {
-    const result = {} as Record<PipelineStage, LeadEntry[]>
-    for (const stage of PIPELINE_STAGES) {
-      result[stage] = filtered.filter((l) => l.status_stage === stage)
-    }
-    return result
-  }, [filtered])
-
   function handleSave(form: QuickLeadForm) {
     const current = getLeadsSnapshot()
     saveLeads([createLeadFromQuickForm(form), ...current])
@@ -519,35 +428,20 @@ export default function CrmPage() {
     emitLeadsChange()
   }
 
-  function handleKanbanDrop(toStage: PipelineStage) {
-    const id = dragLeadId.current
-    if (!id) return
-    dragLeadId.current = null
-
-    const current = getLeadsSnapshot()
-    const lead = current.find((l) => l.id === id)
-    if (!lead || lead.status_stage === toStage) return
-
-    saveLeads(current.map((l) => (l.id === id ? moveLeadToStage(l, toStage) : l)))
-    emitLeadsChange()
-  }
-
   return (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b px-6 pb-4 pt-6">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Leads &amp; CRM</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Gerencie seu pipeline comercial</p>
-        </div>
-        <Button onClick={() => setSheetOpen(true)} size="sm" className="gap-1.5">
-          <Plus className="size-4" />
-          Novo Lead
-        </Button>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Leads & CRM"
+        description="Gerencie seu pipeline comercial"
+        actions={
+          <Button onClick={() => setSheetOpen(true)} size="sm" className="gap-1.5">
+            <Plus className="size-4" />
+            Novo Lead
+          </Button>
+        }
+      />
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="space-y-5 px-6 py-5">
+      <div className="flex flex-col gap-5">
           {/* Stats */}
           <div className="flex flex-wrap gap-3">
             <StatCard label="Leads ativos" value={stats.total} />
@@ -609,94 +503,50 @@ export default function CrmPage() {
                 )
               })}
             </div>
-
-            <div className="ml-auto flex items-center overflow-hidden rounded-md border">
-              <button
-                onClick={() => setView("list")}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors",
-                  view === "list"
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <LayoutList className="size-3.5" />
-                Lista
-              </button>
-              <button
-                onClick={() => setView("kanban")}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors",
-                  view === "kanban"
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Kanban className="size-3.5" />
-                Kanban
-              </button>
-            </div>
           </div>
 
           {/* Content */}
-          {view === "list" ? (
-            <div className="space-y-2">
-              {filtered.length > 0 && (
-                <div className="hidden items-center gap-4 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground md:flex">
-                  <div className="size-9 shrink-0" />
-                  <div className="flex-[2]">Empresa</div>
-                  <div className="hidden flex-1 md:block">Estágio</div>
-                  <div className="hidden flex-1 lg:block">Origem</div>
-                  <div className="hidden w-20 text-right md:block">Data</div>
-                  <div className="w-16 shrink-0" />
-                </div>
-              )}
-
-              {filtered.length > 0 ? (
-                filtered.map((lead) => (
-                  <LeadListRow key={lead.id} lead={lead} onDelete={handleDelete} />
-                ))
-              ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
-                    <UserRound className="size-5 text-muted-foreground" />
-                  </div>
-                  <p className="text-sm font-medium">
-                    {search || stageFilter !== "all" ? "Nenhum lead encontrado" : "Nenhum lead ainda"}
-                  </p>
-                  <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                    {search || stageFilter !== "all"
-                      ? "Tente ajustar os filtros de busca."
-                      : "Adicione seu primeiro lead clicando em + Novo Lead."}
-                  </p>
-                  {!search && stageFilter === "all" && (
-                    <Button onClick={() => setSheetOpen(true)} size="sm" className="mt-4 gap-1.5">
-                      <Plus className="size-4" />
-                      Novo Lead
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
+          {filtered.length > 0 ? (
+            <Card className="overflow-hidden py-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Empresa</TableHead>
+                    <TableHead className="hidden md:table-cell">Estágio</TableHead>
+                    <TableHead className="hidden lg:table-cell">Origem</TableHead>
+                    <TableHead className="hidden lg:table-cell">Proposta</TableHead>
+                    <TableHead className="hidden text-right md:table-cell">Data</TableHead>
+                    <TableHead className="w-px" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((lead) => (
+                    <LeadTableRow key={lead.id} lead={lead} onDelete={handleDelete} />
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
           ) : (
-            <div className="-mx-6 overflow-x-auto px-6 pb-4">
-              <div className="flex w-max gap-3">
-                {PIPELINE_STAGES.map((stage) => (
-                  <KanbanColumn
-                    key={stage}
-                    stage={stage}
-                    leads={kanbanByStage[stage]}
-                    onDragStart={(id) => {
-                      dragLeadId.current = id
-                    }}
-                    onDrop={handleKanbanDrop}
-                    onDelete={handleDelete}
-                  />
-                ))}
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
+                <UserRound className="size-5 text-muted-foreground" />
               </div>
+              <p className="text-sm font-medium">
+                {search || stageFilter !== "all" ? "Nenhum lead encontrado" : "Nenhum lead ainda"}
+              </p>
+              <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                {search || stageFilter !== "all"
+                  ? "Tente ajustar os filtros de busca."
+                  : "Adicione seu primeiro lead clicando em + Novo Lead."}
+              </p>
+              {!search && stageFilter === "all" && (
+                <Button onClick={() => setSheetOpen(true)} size="sm" className="mt-4 gap-1.5">
+                  <Plus className="size-4" />
+                  Novo Lead
+                </Button>
+              )}
             </div>
           )}
-        </div>
       </div>
 
       <LeadSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={handleSave} />

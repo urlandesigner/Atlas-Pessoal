@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { PageHeader } from "@/components/ui/page-header"
 import { TrendingUp, TrendingDown, DollarSign } from "lucide-react"
 
 interface PaymentEntry {
@@ -79,12 +80,10 @@ export default function RevenuePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Financeiro</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Receitas e despesas de todos os projetos
-        </p>
-      </div>
+      <PageHeader
+        title="Financeiro"
+        description="Receitas e despesas de todos os projetos"
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>

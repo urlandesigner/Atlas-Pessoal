@@ -5,6 +5,7 @@ import type { Project, ProjectStatus } from "@/types"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { PageHeader } from "@/components/ui/page-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -233,12 +234,10 @@ export default function FreelancerProjectsPage() {
   return (
     <>
       <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Projetos Freelancer</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Sites, sistemas e trabalhos externos
-          </p>
-        </div>
+        <PageHeader
+          title="Projetos Freelancer"
+          description="Sites, sistemas e trabalhos externos"
+        />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {PROJECTS.map((project) => (
