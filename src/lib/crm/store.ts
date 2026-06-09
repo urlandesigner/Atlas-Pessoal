@@ -255,6 +255,87 @@ export const PIPELINE_STAGE_FIELDS: Record<PipelineStage, string[]> = {
   client: ["closed_value"],
 }
 
+// Human-readable labels for every pipeline field
+export const FIELD_LABELS: Record<string, string> = {
+  company: "Empresa",
+  segment: "Segmento",
+  city: "Cidade",
+  origin: "Origem",
+  contact_name: "Nome do contato",
+  email: "E-mail",
+  phone: "Telefone",
+  job_title: "Cargo",
+  project_objective: "Objetivo do projeto",
+  project_type: "Tipo de projeto",
+  desired_deadline: "Prazo desejado",
+  investment_range: "Faixa de investimento",
+  meeting_date: "Data da reunião",
+  meeting_notes: "Notas da reunião",
+  meeting_attendees: "Participantes",
+  estimated_value: "Valor estimado",
+  quote_value: "Valor enviado",
+  closing_probability: "Probabilidade de fechamento",
+  project_start: "Início do projeto",
+  project_deadline: "Prazo do projeto",
+  project_manager: "Responsável",
+  closed_value: "Valor fechado",
+}
+
+// Resolve a pipeline field key to its current value within the sectioned data
+export function getFieldValue(lead: LeadEntry, key: string): unknown {
+  switch (key) {
+    case "company":
+      return lead.prospect.company
+    case "segment":
+      return lead.prospect.segment
+    case "city":
+      return lead.prospect.city
+    case "origin":
+      return lead.prospect.origin
+    case "contact_name":
+      return lead.qualification.contact_name
+    case "email":
+      return lead.qualification.email || lead.communication.email
+    case "phone":
+      return lead.qualification.phone || lead.communication.phone
+    case "job_title":
+      return lead.qualification.job_title
+    case "project_objective":
+      return lead.qualification.project_objective
+    case "project_type":
+      return lead.qualification.project_type
+    case "desired_deadline":
+      return lead.qualification.desired_deadline
+    case "investment_range":
+      return lead.qualification.investment_range
+    case "estimated_value":
+      return lead.opportunity.estimated_value
+    case "quote_value":
+      return lead.opportunity.quote_value
+    case "closing_probability":
+      return lead.opportunity.closing_probability
+    case "closed_value":
+      return lead.opportunity.closed_value
+    default:
+      return undefined
+  }
+}
+
+export interface StageFieldStatus {
+  key: string
+  label: string
+  filled: boolean
+}
+
+// Returns the checklist status for every field of a given stage
+export function getStageFieldStatus(lead: LeadEntry, stage: PipelineStage): StageFieldStatus[] {
+  return PIPELINE_STAGE_FIELDS[stage].map((key) => {
+    const value = getFieldValue(lead, key)
+    const filled = value !== undefined && value !== null && value !== "" && value !== 0
+    return { key, label: FIELD_LABELS[key] ?? key, filled }
+  })
+}
+
 export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
   new: "Novo Lead",
   contacted: "Contato Realizado",
@@ -434,34 +515,19 @@ function buildTimelineEvent(
   return { id: createId(), type, description, created_at: createdAt }
 }
 
-function calculateCompletionPercentage(lead: Partial<LeadEntry>): number {
-  const stage = lead.status_stage ?? "lead"
-  const fields = PIPELINE_STAGE_FIELDS[stage]
-  if (!fields || fields.length === 0) return 0
-
-  let filled = 0
-  for (const field of fields) {
-    const value = (lead as any)[field]
-    if (value && value !== "" && value !== null) filled++
-  }
-  return Math.round((filled / fields.length) * 100)
-}
-
-function buildStageCompletion(lead: Partial<LeadEntry>): Record<PipelineStage, StageCompletion> {
-  const result: Record<PipelineStage, StageCompletion> = {} as any
+// Builds completion stats for every stage from the sectioned data.
+function buildStageCompletion(lead: LeadEntry): Record<PipelineStage, StageCompletion> {
+  const result: Record<PipelineStage, StageCompletion> = {} as Record<PipelineStage, StageCompletion>
 
   for (const stage of PIPELINE_STAGES) {
-    const fields = PIPELINE_STAGE_FIELDS[stage]
-    const filled = fields.filter((f) => {
-      const value = (lead as any)[f]
-      return value && value !== "" && value !== null
-    })
+    const items = getStageFieldStatus(lead, stage)
+    const filled = items.filter((i) => i.filled).map((i) => i.key)
 
     result[stage] = {
       stage,
       fields_filled: filled,
-      total_fields: fields.length,
-      completion_percentage: fields.length > 0 ? Math.round((filled.length / fields.length) * 100) : 0,
+      total_fields: items.length,
+      completion_percentage: items.length > 0 ? Math.round((filled.length / items.length) * 100) : 0,
     }
   }
 
@@ -519,7 +585,7 @@ function normalizeLead(entry: Partial<LeadEntry>): LeadEntry {
     },
 
     stages: Array.isArray(entry.stages) ? entry.stages : [],
-    stage_completion: entry.stage_completion ?? buildStageCompletion(entry),
+    stage_completion: {} as Record<PipelineStage, StageCompletion>,
 
     // Historical data
     activities: Array.isArray(entry.activities) ? entry.activities : [],
@@ -547,12 +613,15 @@ function normalizeLead(entry: Partial<LeadEntry>): LeadEntry {
     desired_deadline: entry.desired_deadline?.trim() ?? "",
     investment_range: entry.investment_range?.trim() ?? "",
     origin: entry.origin ?? "",
+    estimated_value: entry.opportunity?.estimated_value ?? entry.estimated_value ?? null,
     responsible: entry.responsible?.trim() ?? "",
     proposal_id: entry.proposal_id ?? null,
   }
 
-  // Recalculate completion percentage
-  normalized.completion_percentage = calculateCompletionPercentage(normalized)
+  // Recompute completion from the sectioned data (source of truth)
+  normalized.stage_completion = buildStageCompletion(normalized)
+  normalized.completion_percentage =
+    normalized.stage_completion[normalized.status_stage]?.completion_percentage ?? 0
 
   return normalized
 }
@@ -971,6 +1040,34 @@ export function updateCommunication(lead: LeadEntry, data: Partial<Communication
     },
     updated_at: now,
   })
+
+  return updated
+}
+
+// Apply edits to multiple sections at once, recording a single timeline event.
+export function updateLeadSections(
+  lead: LeadEntry,
+  patch: {
+    prospect?: Partial<ProspectData>
+    qualification?: Partial<QualificationData>
+    opportunity?: Partial<OpportunityData>
+    communication?: Partial<CommunicationData>
+  }
+): LeadEntry {
+  const now = new Date().toISOString()
+  const updated = normalizeLead({
+    ...lead,
+    prospect: { ...lead.prospect, ...patch.prospect },
+    qualification: { ...lead.qualification, ...patch.qualification },
+    opportunity: { ...lead.opportunity, ...patch.opportunity, updated_at: now },
+    communication: { ...lead.communication, ...patch.communication },
+    updated_at: now,
+  })
+
+  updated.timeline = [
+    ...lead.timeline,
+    buildTimelineEvent("edited", "Dados do lead atualizados.", now),
+  ]
 
   return updated
 }

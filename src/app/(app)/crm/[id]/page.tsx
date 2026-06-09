@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import {
   ArrowLeft,
+  ArrowRight,
   AtSign,
   Building2,
   Check,
@@ -20,6 +21,7 @@ import {
   Plus,
   Save,
   Trash2,
+  Trophy,
   User,
   UserRound,
 } from "lucide-react"
@@ -27,62 +29,53 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
   addActivityToLead,
   addCommentToLead,
+  advanceLeadStage,
   ACTIVITY_TYPE_LABEL,
   ACTIVITY_TYPE_OPTIONS,
   BRIEFING_FEATURES,
-  createLeadFormFromEntry,
   emitLeadsChange,
   getLeadsServerSnapshot,
   getLeadsSnapshot,
+  getNextStage,
   LEAD_ORIGIN_LABEL,
   LEAD_ORIGIN_OPTIONS,
-  LEAD_STATUS_LABEL,
-  LEAD_STATUS_ORDER,
+  PIPELINE_STAGE_LABEL,
   PROJECT_TYPE_LABEL,
   PROJECT_TYPE_OPTIONS,
   saveLeads,
   subscribeLeadsStore,
   toggleActivityStatus,
   updateLeadBriefing,
-  updateLeadFromForm,
+  updateCommunication,
+  updateOpportunity,
+  updateQualification,
   type ActivityStatus,
   type ActivityType,
   type BriefingData,
   type LeadActivity,
   type LeadEntry,
-  type LeadForm,
   type LeadOrigin,
-  type LeadStatus,
+  type PipelineStage,
   type ProjectType,
   EMPTY_BRIEFING,
 } from "@/lib/crm/store"
+import { PipelineTracker, StageBadge, StageChecklist } from "@/components/crm"
 
 // ─── Badge maps ────────────────────────────────────────────────────────────
 
-const STATUS_CLASS: Record<LeadStatus, string> = {
-  new: "border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  contacted: "border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300",
-  briefing: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  proposal_sent: "border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  negotiation: "border-orange-500/20 bg-orange-500/10 text-orange-700 dark:text-orange-300",
-  closed: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  lost: "border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300",
-}
-
 const TIMELINE_ICON: Record<string, React.ReactNode> = {
-  created: <Circle className="size-3.5 text-sky-500" />,
-  status_changed: <ChevronDown className="size-3.5 text-violet-500" />,
-  comment_added: <MessageSquare className="size-3.5 text-amber-500" />,
-  activity_added: <CheckCircle2 className="size-3.5 text-emerald-500" />,
-  proposal_linked: <FileText className="size-3.5 text-blue-500" />,
-  edited: <Save className="size-3.5 text-zinc-400" />,
+  created: <Circle className="size-3.5 text-muted-foreground" />,
+  stage_changed: <ChevronDown className="size-3.5 text-foreground" />,
+  status_changed: <ChevronDown className="size-3.5 text-foreground" />,
+  comment_added: <MessageSquare className="size-3.5 text-muted-foreground" />,
+  activity_added: <CheckCircle2 className="size-3.5 text-foreground" />,
+  proposal_linked: <FileText className="size-3.5 text-foreground" />,
+  edited: <Save className="size-3.5 text-muted-foreground" />,
 }
 
 // ─── Utilities ─────────────────────────────────────────────────────────────
@@ -95,43 +88,6 @@ function formatDateTime(isoString: string) {
     hour: "2-digit",
     minute: "2-digit",
   })
-}
-
-function formatDate(isoString: string) {
-  return new Date(`${isoString.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  })
-}
-
-function money(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
-
-// ─── Info field ─────────────────────────────────────────────────────────────
-
-function InfoField({ label, value, icon }: { label: string; value: string | null; icon?: React.ReactNode }) {
-  if (!value) return null
-  return (
-    <div className="flex items-start gap-2.5">
-      {icon && <span className="text-muted-foreground mt-0.5 shrink-0">{icon}</span>}
-      <div className="min-w-0">
-        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-        <p className="text-sm mt-0.5 break-words">{value}</p>
-      </div>
-    </div>
-  )
-}
-
-// ─── Section heading ─────────────────────────────────────────────────────────
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-      {children}
-    </p>
-  )
 }
 
 // ─── Tab button ──────────────────────────────────────────────────────────────
@@ -160,182 +116,293 @@ function TabBtn({
   )
 }
 
+// ─── Shared field primitives ──────────────────────────────────────────────
+
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={className}>
+      <label className="mb-1 block text-xs text-muted-foreground">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+const selectClass =
+  "w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+
+function parseMoney(value: string): number | null {
+  if (!value.trim()) return null
+  const n = parseFloat(value.replace(/[^\d,.-]/g, "").replace(",", "."))
+  return Number.isFinite(n) ? n : null
+}
+
 // ─── Overview tab ────────────────────────────────────────────────────────────
 
 function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: LeadEntry) => void }) {
-  const [form, setForm] = useState<LeadForm>(createLeadFormFromEntry(lead))
+  const [prospect, setProspect] = useState(lead.prospect)
+  const [qual, setQual] = useState(lead.qualification)
+  const [opp, setOpp] = useState(lead.opportunity)
+  const [comm, setComm] = useState(lead.communication)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    setForm(createLeadFormFromEntry(lead))
+    setProspect(lead.prospect)
+    setQual(lead.qualification)
+    setOpp(lead.opportunity)
+    setComm(lead.communication)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead.id])
-
-  function set(key: keyof LeadForm, value: string) {
-    setForm((f) => ({ ...f, [key]: value }))
-  }
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    onUpdate(updateLeadFromForm(lead, form))
+    onUpdate(
+      updateLeadSections(lead, {
+        prospect,
+        qualification: qual,
+        opportunity: opp,
+        communication: comm,
+      })
+    )
     setTimeout(() => setSaving(false), 600)
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-6 pb-8">
-      {/* Contact section */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <User className="size-4 text-muted-foreground" />
-            Dados do Contato
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2">
-            <label className="text-xs text-muted-foreground mb-1 block">Nome *</label>
-            <Input value={form.name} onChange={(e) => set("name", e.target.value)} required />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">E-mail</label>
-            <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Telefone</label>
-            <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs text-muted-foreground mb-1 block">WhatsApp</label>
-            <Input value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
+    <form onSubmit={handleSave} className="space-y-6 pb-24">
+      {/* Stage checklist — what's left in the current stage */}
+      <StageChecklist lead={lead} stage={lead.status_stage} />
 
-      {/* Company section */}
+      {/* Empresa */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
             <Building2 className="size-4 text-muted-foreground" />
-            Dados da Empresa
+            Empresa
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2">
-            <label className="text-xs text-muted-foreground mb-1 block">Empresa</label>
-            <Input value={form.company} onChange={(e) => set("company", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Segmento</label>
-            <Input value={form.segment} onChange={(e) => set("segment", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Cidade</label>
-            <Input value={form.city} onChange={(e) => set("city", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Estado</label>
-            <Input value={form.state} onChange={(e) => set("state", e.target.value)} maxLength={2} />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Instagram</label>
-            <Input value={form.instagram} onChange={(e) => set("instagram", e.target.value)} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs text-muted-foreground mb-1 block">Site atual</label>
-            <Input value={form.current_site} onChange={(e) => set("current_site", e.target.value)} />
-          </div>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Empresa" className="sm:col-span-2">
+            <Input
+              value={prospect.company}
+              onChange={(e) => setProspect((p) => ({ ...p, company: e.target.value }))}
+            />
+          </Field>
+          <Field label="Segmento">
+            <Input
+              value={prospect.segment ?? ""}
+              onChange={(e) => setProspect((p) => ({ ...p, segment: e.target.value }))}
+            />
+          </Field>
+          <Field label="Cidade">
+            <Input
+              value={prospect.city ?? ""}
+              onChange={(e) => setProspect((p) => ({ ...p, city: e.target.value }))}
+            />
+          </Field>
+          <Field label="Estado">
+            <Input
+              value={prospect.state ?? ""}
+              maxLength={2}
+              onChange={(e) => setProspect((p) => ({ ...p, state: e.target.value }))}
+            />
+          </Field>
+          <Field label="Origem">
+            <select
+              value={prospect.origin ?? ""}
+              onChange={(e) =>
+                setProspect((p) => ({ ...p, origin: e.target.value as LeadOrigin | "" }))
+              }
+              className={selectClass}
+            >
+              <option value="">Selecionar…</option>
+              {LEAD_ORIGIN_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {LEAD_ORIGIN_LABEL[o]}
+                </option>
+              ))}
+            </select>
+          </Field>
         </CardContent>
       </Card>
 
-      {/* Opportunity section */}
+      {/* Qualificação */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <User className="size-4 text-muted-foreground" />
+            Qualificação
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Nome do contato">
+            <Input
+              value={qual.contact_name ?? ""}
+              onChange={(e) => setQual((q) => ({ ...q, contact_name: e.target.value }))}
+            />
+          </Field>
+          <Field label="Cargo">
+            <Input
+              value={qual.job_title ?? ""}
+              onChange={(e) => setQual((q) => ({ ...q, job_title: e.target.value }))}
+            />
+          </Field>
+          <Field label="E-mail">
+            <Input
+              type="email"
+              value={qual.email ?? ""}
+              onChange={(e) => setQual((q) => ({ ...q, email: e.target.value }))}
+            />
+          </Field>
+          <Field label="Telefone">
+            <Input
+              value={qual.phone ?? ""}
+              onChange={(e) => setQual((q) => ({ ...q, phone: e.target.value }))}
+            />
+          </Field>
+          <Field label="Tipo de projeto">
+            <select
+              value={qual.project_type ?? ""}
+              onChange={(e) =>
+                setQual((q) => ({ ...q, project_type: e.target.value as ProjectType | "" }))
+              }
+              className={selectClass}
+            >
+              <option value="">Selecionar…</option>
+              {PROJECT_TYPE_OPTIONS.map((t) => (
+                <option key={t} value={t}>
+                  {PROJECT_TYPE_LABEL[t]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Prazo desejado">
+            <Input
+              value={qual.desired_deadline ?? ""}
+              placeholder="Ex: 30 dias"
+              onChange={(e) => setQual((q) => ({ ...q, desired_deadline: e.target.value }))}
+            />
+          </Field>
+          <Field label="Faixa de investimento" className="sm:col-span-2">
+            <Input
+              value={qual.investment_range ?? ""}
+              placeholder="Ex: R$ 3k–6k"
+              onChange={(e) => setQual((q) => ({ ...q, investment_range: e.target.value }))}
+            />
+          </Field>
+          <Field label="Objetivo do projeto" className="sm:col-span-2">
+            <Textarea
+              value={qual.project_objective ?? ""}
+              onChange={(e) => setQual((q) => ({ ...q, project_objective: e.target.value }))}
+              className="resize-none"
+              rows={3}
+            />
+          </Field>
+        </CardContent>
+      </Card>
+
+      {/* Oportunidade */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
             <FileText className="size-4 text-muted-foreground" />
             Oportunidade
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="sm:col-span-2">
-            <label className="text-xs text-muted-foreground mb-1 block">Tipo de projeto</label>
-            <select
-              value={form.project_type}
-              onChange={(e) => set("project_type", e.target.value)}
-              className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="">Selecionar…</option>
-              {PROJECT_TYPE_OPTIONS.map((t) => (
-                <option key={t} value={t}>{PROJECT_TYPE_LABEL[t]}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Prazo desejado</label>
-            <Input value={form.desired_deadline} onChange={(e) => set("desired_deadline", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Faixa de investimento</label>
-            <Input value={form.investment_range} onChange={(e) => set("investment_range", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Valor estimado (R$)</label>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Field label="Valor estimado (R$)">
             <Input
-              value={form.estimated_value}
-              onChange={(e) => set("estimated_value", e.target.value)}
               inputMode="decimal"
+              value={opp.estimated_value ?? ""}
+              onChange={(e) => setOpp((o) => ({ ...o, estimated_value: parseMoney(e.target.value) }))}
             />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Responsável</label>
-            <Input value={form.responsible} onChange={(e) => set("responsible", e.target.value)} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs text-muted-foreground mb-1 block">Objetivo do projeto</label>
+          </Field>
+          <Field label="Valor enviado (R$)">
+            <Input
+              inputMode="decimal"
+              value={opp.quote_value ?? ""}
+              onChange={(e) => setOpp((o) => ({ ...o, quote_value: parseMoney(e.target.value) }))}
+            />
+          </Field>
+          <Field label="Valor fechado (R$)">
+            <Input
+              inputMode="decimal"
+              value={opp.closed_value ?? ""}
+              onChange={(e) => setOpp((o) => ({ ...o, closed_value: parseMoney(e.target.value) }))}
+            />
+          </Field>
+          <Field label="Probabilidade de fechamento" className="sm:col-span-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={opp.closing_probability ?? 0}
+                onChange={(e) =>
+                  setOpp((o) => ({ ...o, closing_probability: Number(e.target.value) }))
+                }
+                className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-muted accent-foreground"
+              />
+              <span className="w-12 text-right font-mono text-sm tabular-nums">
+                {opp.closing_probability ?? 0}%
+              </span>
+            </div>
+          </Field>
+          <Field label="Observações" className="sm:col-span-3">
             <Textarea
-              value={form.project_objective}
-              onChange={(e) => set("project_objective", e.target.value)}
+              value={opp.notes ?? ""}
+              onChange={(e) => setOpp((o) => ({ ...o, notes: e.target.value }))}
               className="resize-none"
               rows={3}
+              placeholder="Notas comerciais, contexto da negociação…"
             />
-          </div>
+          </Field>
         </CardContent>
       </Card>
 
-      {/* Origin & Status */}
+      {/* Contato & Canais */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Origem & Status</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Phone className="size-4 text-muted-foreground" />
+            Contato & Canais
+          </CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Origem do lead</label>
-            <select
-              value={form.origin}
-              onChange={(e) => set("origin", e.target.value)}
-              className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="">Selecionar…</option>
-              {LEAD_ORIGIN_OPTIONS.map((o) => (
-                <option key={o} value={o}>{LEAD_ORIGIN_LABEL[o]}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Status do pipeline</label>
-            <select
-              value={form.status}
-              onChange={(e) => set("status", e.target.value as LeadStatus)}
-              className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              {LEAD_STATUS_ORDER.map((s) => (
-                <option key={s} value={s}>{LEAD_STATUS_LABEL[s]}</option>
-              ))}
-            </select>
-          </div>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="WhatsApp">
+            <Input
+              value={comm.whatsapp ?? ""}
+              placeholder="+55 27 99999-9999"
+              onChange={(e) => setComm((c) => ({ ...c, whatsapp: e.target.value }))}
+            />
+          </Field>
+          <Field label="Instagram">
+            <Input
+              value={comm.instagram ?? ""}
+              placeholder="@perfil"
+              onChange={(e) => setComm((c) => ({ ...c, instagram: e.target.value }))}
+            />
+          </Field>
+          <Field label="Site atual" className="sm:col-span-2">
+            <Input
+              value={comm.current_site ?? ""}
+              placeholder="https://…"
+              onChange={(e) => setComm((c) => ({ ...c, current_site: e.target.value }))}
+            />
+          </Field>
         </CardContent>
       </Card>
 
-      <div className="flex justify-end">
+      {/* Sticky save bar */}
+      <div className="sticky bottom-0 -mx-6 flex justify-end border-t bg-background/80 px-6 py-3 backdrop-blur">
         <Button type="submit" size="sm" disabled={saving} className="gap-1.5">
           <Save className="size-3.5" />
           {saving ? "Salvando…" : "Salvar alterações"}
@@ -842,6 +909,13 @@ export default function LeadDetailPage() {
     router.push("/crm")
   }
 
+  function handleAdvance(current: LeadEntry) {
+    const next = getNextStage(current)
+    if (!next) return
+    if (!confirm(`Avançar este lead para "${PIPELINE_STAGE_LABEL[next]}"?`)) return
+    handleUpdate(advanceLeadStage(current))
+  }
+
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
@@ -857,6 +931,22 @@ export default function LeadDetailPage() {
   }
 
   const pendingCount = lead.activities.filter((a) => a.status === "pending").length
+  const nextStage = getNextStage(lead)
+  const contactName = lead.qualification.contact_name?.trim() ?? ""
+  const titleInitial = (lead.prospect.company || contactName || "?").trim().charAt(0).toUpperCase()
+  const completionByStage = Object.fromEntries(
+    Object.entries(lead.stage_completion).map(([s, c]) => [s, c.completion_percentage])
+  ) as Partial<Record<PipelineStage, number>>
+
+  const waLink = lead.communication.whatsapp
+    ? `https://wa.me/${lead.communication.whatsapp.replace(/\D/g, "")}`
+    : null
+  const igHandle = lead.communication.instagram?.replace("@", "")
+  const siteLink = lead.communication.current_site
+    ? lead.communication.current_site.startsWith("http")
+      ? lead.communication.current_site
+      : `https://${lead.communication.current_site}`
+    : null
 
   return (
     <div className="flex flex-col h-full">
@@ -895,103 +985,110 @@ export default function LeadDetailPage() {
         </div>
 
         {/* Lead identity */}
-        <div className="flex items-start gap-4 mb-4">
-          <div className="size-12 rounded-full bg-muted flex items-center justify-center shrink-0 font-semibold text-lg text-muted-foreground">
-            {lead.name
-              .trim()
-              .split(" ")
-              .slice(0, 2)
-              .map((w) => w[0])
-              .join("")
-              .toUpperCase() || <UserRound className="size-5" />}
+        <div className="mb-5 flex items-start gap-4">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-foreground text-lg font-semibold text-background">
+            {titleInitial || <UserRound className="size-5" />}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start gap-3 flex-wrap">
-              <h1 className="text-xl font-semibold leading-tight">
-                {lead.name || "Lead sem nome"}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-xl font-semibold leading-tight tracking-tight">
+                {lead.prospect.company || contactName || "Lead sem empresa"}
               </h1>
-              <Badge
-                variant="outline"
-                className={cn("font-normal shrink-0", STATUS_CLASS[lead.status])}
-              >
-                {LEAD_STATUS_LABEL[lead.status]}
-              </Badge>
+              <StageBadge stage={lead.status_stage} solid />
             </div>
-            <div className="flex items-center gap-3 mt-1 flex-wrap">
-              {lead.company && (
-                <span className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Building2 className="size-3.5" />
-                  {lead.company}
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+              {contactName && (
+                <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <User className="size-3.5" />
+                  {contactName}
+                  {lead.qualification.job_title ? ` · ${lead.qualification.job_title}` : ""}
                 </span>
               )}
-              {lead.project_type && (
+              {lead.prospect.segment && (
+                <span className="text-sm text-muted-foreground">{lead.prospect.segment}</span>
+              )}
+              {lead.prospect.city && (
+                <span className="text-sm text-muted-foreground">{lead.prospect.city}</span>
+              )}
+              {lead.prospect.origin && (
                 <span className="text-sm text-muted-foreground">
-                  {PROJECT_TYPE_LABEL[lead.project_type as ProjectType]}
-                </span>
-              )}
-              {lead.estimated_value !== null && (
-                <span className="text-sm font-medium">
-                  {money(lead.estimated_value)}
-                </span>
-              )}
-              {lead.origin && (
-                <span className="text-sm text-muted-foreground">
-                  via {LEAD_ORIGIN_LABEL[lead.origin as LeadOrigin]}
+                  via {LEAD_ORIGIN_LABEL[lead.prospect.origin as LeadOrigin]}
                 </span>
               )}
             </div>
 
             {/* Quick contact links */}
-            <div className="flex items-center gap-3 mt-2 flex-wrap">
-              {lead.email && (
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              {lead.qualification.email && (
                 <a
-                  href={`mailto:${lead.email}`}
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                  href={`mailto:${lead.qualification.email}`}
+                  className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <Mail className="size-3" />
-                  {lead.email}
+                  {lead.qualification.email}
                 </a>
               )}
-              {lead.whatsapp && (
+              {waLink && (
                 <a
-                  href={`https://wa.me/${lead.whatsapp.replace(/\D/g, "")}`}
+                  href={waLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <Phone className="size-3" />
-                  {lead.whatsapp}
+                  {lead.communication.whatsapp}
                 </a>
               )}
-              {lead.current_site && (
+              {siteLink && (
                 <a
-                  href={
-                    lead.current_site.startsWith("http")
-                      ? lead.current_site
-                      : `https://${lead.current_site}`
-                  }
+                  href={siteLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <Globe className="size-3" />
                   Site atual
                   <ExternalLink className="size-2.5" />
                 </a>
               )}
-              {lead.instagram && (
+              {igHandle && (
                 <a
-                  href={`https://instagram.com/${lead.instagram.replace("@", "")}`}
+                  href={`https://instagram.com/${igHandle}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <AtSign className="size-3" />
-                  {lead.instagram}
+                  {lead.communication.instagram}
                 </a>
               )}
             </div>
           </div>
+        </div>
+
+        {/* Pipeline tracker — the hero */}
+        <div className="mb-5 rounded-2xl border border-border/70 bg-gradient-to-b from-muted/40 to-card px-4 py-4 sm:px-6">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Jornada comercial
+            </p>
+            {nextStage ? (
+              <Button
+                size="sm"
+                onClick={() => handleAdvance(lead)}
+                className="h-7 gap-1.5 px-3 text-xs"
+              >
+                Avançar para {PIPELINE_STAGE_LABEL[nextStage]}
+                <ArrowRight className="size-3.5" />
+              </Button>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                <Trophy className="size-3.5" />
+                Cliente conquistado
+              </span>
+            )}
+          </div>
+          <PipelineTracker current={lead.status_stage} completionByStage={completionByStage} />
         </div>
 
         {/* Tabs */}
