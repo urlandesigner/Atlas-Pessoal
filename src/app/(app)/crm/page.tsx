@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import {
+  Ban,
   Building2,
   ExternalLink,
   Kanban,
@@ -48,10 +49,6 @@ import {
 import { StageBadge, STAGE_META } from "@/components/crm"
 
 // ─── Utilities ─────────────────────────────────────────────────────────────
-
-function money(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
 
 function normalizeSearch(value: string) {
   return value
@@ -223,7 +220,6 @@ function KanbanCard({
   onDragStart: (id: string) => void
   onDelete: (id: string) => void
 }) {
-  const value = lead.opportunity.estimated_value
   return (
     <div
       draggable
@@ -254,17 +250,13 @@ function KanbanCard({
               </button>
             </div>
 
-            {lead.prospect.segment && (
-              <p className="truncate text-xs text-muted-foreground/80">{lead.prospect.segment}</p>
-            )}
-
             <div className="flex items-center justify-between pt-1">
-              {value ? (
-                <span className="font-mono text-xs font-medium tabular-nums text-foreground">
-                  {money(value)}
+              {lead.prospect.segment ? (
+                <span className="truncate text-xs text-muted-foreground/80">
+                  {lead.prospect.segment}
                 </span>
               ) : (
-                <span className="text-xs text-muted-foreground/60">Sem valor</span>
+                <span />
               )}
               <span className="text-[10px] text-muted-foreground">
                 {formatRelative(lead.created_at)}
@@ -294,7 +286,6 @@ function KanbanColumn({
 }) {
   const [dragOver, setDragOver] = useState(false)
   const Icon = STAGE_META[stage].icon
-  const totalValue = leads.reduce((sum, l) => sum + (l.opportunity.estimated_value ?? 0), 0)
 
   return (
     <div className="flex w-[260px] shrink-0 flex-col">
@@ -306,11 +297,6 @@ function KanbanColumn({
             {leads.length}
           </span>
         </div>
-        {totalValue > 0 && (
-          <span className="font-mono text-[10px] font-medium text-muted-foreground">
-            {money(totalValue)}
-          </span>
-        )}
       </div>
 
       <div
@@ -352,7 +338,6 @@ function LeadListRow({
   onDelete: (id: string) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const value = lead.opportunity.estimated_value
 
   return (
     <Card className="group border-border/60 transition-shadow hover:border-border hover:shadow-sm">
@@ -384,7 +369,14 @@ function LeadListRow({
 
           {/* Stage */}
           <div className="hidden min-w-0 flex-1 md:block">
-            <StageBadge stage={lead.status_stage} />
+            {lead.lost ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium leading-5 text-muted-foreground">
+                <Ban className="size-3" strokeWidth={2} />
+                Perdido
+              </span>
+            ) : (
+              <StageBadge stage={lead.status_stage} />
+            )}
           </div>
 
           {/* Origin */}
@@ -393,15 +385,6 @@ function LeadListRow({
               <span className="text-xs text-muted-foreground">
                 {LEAD_ORIGIN_LABEL[lead.prospect.origin as LeadOrigin]}
               </span>
-            ) : (
-              <span className="text-xs text-muted-foreground/50">—</span>
-            )}
-          </div>
-
-          {/* Value */}
-          <div className="hidden w-24 shrink-0 text-right sm:block">
-            {value ? (
-              <span className="font-mono text-sm font-medium tabular-nums">{money(value)}</span>
             ) : (
               <span className="text-xs text-muted-foreground/50">—</span>
             )}
@@ -462,7 +445,7 @@ function LeadListRow({
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 type ViewMode = "list" | "kanban"
-type StageFilter = PipelineStage | "all"
+type StageFilter = PipelineStage | "all" | "lost"
 
 export default function CrmPage() {
   const leads = useSyncExternalStore(subscribeLeadsStore, getLeadsSnapshot, getLeadsServerSnapshot)
@@ -505,7 +488,13 @@ export default function CrmPage() {
     const q = normalizeSearch(search)
     return leads
       .filter((l) => {
-        if (stageFilter !== "all" && l.status_stage !== stageFilter) return false
+        // "Perdidos" shows only lost; every other view hides lost leads.
+        if (stageFilter === "lost") {
+          if (!l.lost) return false
+        } else {
+          if (l.lost) return false
+          if (stageFilter !== "all" && l.status_stage !== stageFilter) return false
+        }
         if (!q) return true
         return (
           normalizeSearch(l.prospect.company).includes(q) ||
@@ -568,29 +557,15 @@ export default function CrmPage() {
         <div className="space-y-5 px-6 py-5">
           {/* Stats */}
           <div className="flex flex-wrap gap-3">
-            <StatCard label="Total de leads" value={stats.total} />
+            <StatCard label="Leads ativos" value={stats.total} />
             <StatCard label="Este mês" value={stats.thisMonth} />
-            <StatCard
-              label="Propostas enviadas"
-              value={stats.proposalSent}
-              sub={`${stats.total ? Math.round((stats.proposalSent / stats.total) * 100) : 0}% do total`}
-            />
             <StatCard label="Clientes" value={stats.clients} />
+            <StatCard label="Perdidos" value={stats.lost} />
             <StatCard
               label="Conversão"
               value={`${stats.conversionRate}%`}
-              sub="clientes vs. total"
+              sub="clientes vs. fechados"
             />
-            {stats.pipelineValue > 0 && (
-              <StatCard
-                label="Em negociação"
-                value={money(stats.pipelineValue)}
-                sub="valor estimado ativo"
-              />
-            )}
-            {stats.wonValue > 0 && (
-              <StatCard label="Total vendido" value={money(stats.wonValue)} />
-            )}
           </div>
 
           {/* Toolbar */}
@@ -615,25 +590,31 @@ export default function CrmPage() {
 
             {/* Stage filter */}
             <div className="flex flex-wrap items-center gap-1">
-              {(["all", ...PIPELINE_STAGES] as StageFilter[]).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStageFilter(s)}
-                  className={cn(
-                    "h-7 rounded-full border px-2.5 text-xs font-medium transition-colors",
-                    stageFilter === s
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-                  )}
-                >
-                  {s === "all" ? "Todos" : PIPELINE_STAGE_LABEL[s]}
-                  {s !== "all" && (
-                    <span className="ml-1 opacity-60">
-                      {leads.filter((l) => l.status_stage === s).length}
-                    </span>
-                  )}
-                </button>
-              ))}
+              {(["all", ...PIPELINE_STAGES, "lost"] as StageFilter[]).map((s) => {
+                const label =
+                  s === "all" ? "Todos" : s === "lost" ? "Perdidos" : PIPELINE_STAGE_LABEL[s]
+                const count =
+                  s === "all"
+                    ? null
+                    : s === "lost"
+                      ? leads.filter((l) => l.lost).length
+                      : leads.filter((l) => !l.lost && l.status_stage === s).length
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setStageFilter(s)}
+                    className={cn(
+                      "h-7 rounded-full border px-2.5 text-xs font-medium transition-colors",
+                      stageFilter === s
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                    )}
+                  >
+                    {label}
+                    {count !== null && <span className="ml-1 opacity-60">{count}</span>}
+                  </button>
+                )
+              })}
             </div>
 
             <div className="ml-auto flex items-center overflow-hidden rounded-md border">
@@ -673,7 +654,6 @@ export default function CrmPage() {
                   <div className="flex-[2]">Empresa</div>
                   <div className="hidden flex-1 md:block">Estágio</div>
                   <div className="hidden flex-1 lg:block">Origem</div>
-                  <div className="hidden w-24 text-right sm:block">Valor</div>
                   <div className="hidden w-20 text-right md:block">Data</div>
                   <div className="w-16 shrink-0" />
                 </div>

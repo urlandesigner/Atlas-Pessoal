@@ -142,6 +142,10 @@ export interface LeadEntry {
   status_stage: PipelineStage
   status: LeadStatus // legacy, for backward compatibility
   completion_percentage: number
+  // Lost (terminal) state — independent of the linear stages
+  lost: boolean
+  lost_reason: string
+  lost_at: string | null
   created_at: string
   updated_at: string
 
@@ -543,6 +547,9 @@ function normalizeLead(entry: Partial<LeadEntry>): LeadEntry {
     status_stage: PIPELINE_STAGES.includes(stage as any) ? (stage as PipelineStage) : "lead",
     status: LEAD_STATUS_ORDER.includes(entry.status as LeadStatus) ? (entry.status as LeadStatus) : "new",
     completion_percentage: entry.completion_percentage ?? 0,
+    lost: entry.lost ?? false,
+    lost_reason: entry.lost_reason?.trim() ?? "",
+    lost_at: entry.lost_at ?? null,
     created_at: now,
     updated_at: entry.updated_at ?? now,
 
@@ -973,6 +980,42 @@ export function advanceLeadStage(lead: LeadEntry, toStage?: PipelineStage): Lead
   return moveLeadToStage(lead, next)
 }
 
+export function markLeadLost(lead: LeadEntry, reason = ""): LeadEntry {
+  const now = new Date().toISOString()
+  const updated = normalizeLead({
+    ...lead,
+    lost: true,
+    lost_reason: reason,
+    lost_at: now,
+    updated_at: now,
+  })
+  updated.timeline = [
+    ...lead.timeline,
+    buildTimelineEvent(
+      "stage_changed",
+      reason ? `Lead marcado como perdido: ${reason}` : "Lead marcado como perdido.",
+      now
+    ),
+  ]
+  return updated
+}
+
+export function reopenLead(lead: LeadEntry): LeadEntry {
+  const now = new Date().toISOString()
+  const updated = normalizeLead({
+    ...lead,
+    lost: false,
+    lost_reason: "",
+    lost_at: null,
+    updated_at: now,
+  })
+  updated.timeline = [
+    ...lead.timeline,
+    buildTimelineEvent("stage_changed", "Lead reaberto no pipeline.", now),
+  ]
+  return updated
+}
+
 export function getNextStage(lead: LeadEntry): PipelineStage | null {
   const currentIndex = PIPELINE_STAGES.indexOf(lead.status_stage)
   if (currentIndex >= 0 && currentIndex < PIPELINE_STAGES.length - 1) {
@@ -1121,42 +1164,33 @@ export function computeLeadStats(leads: LeadEntry[]) {
 }
 
 // Pipeline-aware stats keyed on status_stage (the new source of truth).
+// Lost leads are excluded from active counts and tracked separately.
 export function computePipelineStats(leads: LeadEntry[]) {
   const now = new Date()
-  const idx = (s: PipelineStage) => PIPELINE_STAGES.indexOf(s)
+  const active = leads.filter((l) => !l.lost)
+  const lost = leads.filter((l) => l.lost)
 
-  const thisMonth = leads.filter((l) => {
+  const thisMonth = active.filter((l) => {
     const d = new Date(l.created_at)
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
   })
 
   const byStage = {} as Record<PipelineStage, number>
   for (const stage of PIPELINE_STAGES) {
-    byStage[stage] = leads.filter((l) => l.status_stage === stage).length
+    byStage[stage] = active.filter((l) => l.status_stage === stage).length
   }
 
-  const proposalSent = leads.filter((l) => idx(l.status_stage) >= idx("proposal")).length
-  const clients = leads.filter((l) => l.status_stage === "client")
-  const conversionRate = leads.length > 0 ? Math.round((clients.length / leads.length) * 100) : 0
-
-  // Active deals = proposal/project: value still in play
-  const pipelineValue = leads
-    .filter((l) => idx(l.status_stage) >= idx("proposal") && l.status_stage !== "client")
-    .reduce((sum, l) => sum + (l.opportunity.estimated_value ?? 0), 0)
-
-  const wonValue = clients.reduce(
-    (sum, l) => sum + (l.opportunity.closed_value ?? l.opportunity.estimated_value ?? 0),
-    0
-  )
+  const clients = active.filter((l) => l.status_stage === "client")
+  // Conversion = won vs. decided (won + lost)
+  const decided = clients.length + lost.length
+  const conversionRate = decided > 0 ? Math.round((clients.length / decided) * 100) : 0
 
   return {
-    total: leads.length,
+    total: active.length,
     thisMonth: thisMonth.length,
     byStage,
-    proposalSent,
     clients: clients.length,
+    lost: lost.length,
     conversionRate,
-    pipelineValue,
-    wonValue,
   }
 }

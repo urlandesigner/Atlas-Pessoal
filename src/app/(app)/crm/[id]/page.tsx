@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ArrowRight,
   AtSign,
+  Ban,
   Building2,
   Check,
   CheckCircle2,
@@ -19,6 +20,7 @@ import {
   MessageSquare,
   Phone,
   Plus,
+  RotateCcw,
   Save,
   Trash2,
   Trophy,
@@ -36,7 +38,6 @@ import {
   addCommentToLead,
   ACTIVITY_TYPE_LABEL,
   ACTIVITY_TYPE_OPTIONS,
-  BRIEFING_FEATURES,
   emitLeadsChange,
   getLeadsServerSnapshot,
   getLeadsSnapshot,
@@ -44,26 +45,25 @@ import {
   getPrevStage,
   LEAD_ORIGIN_LABEL,
   LEAD_ORIGIN_OPTIONS,
+  markLeadLost,
   moveLeadToStage,
   PIPELINE_STAGE_LABEL,
   PROJECT_TYPE_LABEL,
   PROJECT_TYPE_OPTIONS,
+  reopenLead,
   saveLeads,
   subscribeLeadsStore,
   toggleActivityStatus,
-  updateLeadBriefing,
   updateLeadSections,
   type ActivityStatus,
   type ActivityType,
-  type BriefingData,
   type LeadActivity,
   type LeadEntry,
   type LeadOrigin,
   type PipelineStage,
   type ProjectType,
-  EMPTY_BRIEFING,
 } from "@/lib/crm/store"
-import { PipelineTracker, StageBadge, StageChecklist } from "@/components/crm"
+import { PipelineTracker, StageBadge } from "@/components/crm"
 
 // ─── Badge maps ────────────────────────────────────────────────────────────
 
@@ -137,12 +137,6 @@ function Field({
 const selectClass =
   "w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
 
-function parseMoney(value: string): number | null {
-  if (!value.trim()) return null
-  const n = parseFloat(value.replace(/[^\d,.-]/g, "").replace(",", "."))
-  return Number.isFinite(n) ? n : null
-}
-
 // ─── Overview tab ────────────────────────────────────────────────────────────
 
 function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: LeadEntry) => void }) {
@@ -176,9 +170,6 @@ function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: 
 
   return (
     <form onSubmit={handleSave} className="space-y-6 pb-24">
-      {/* Stage checklist — what's left in the current stage */}
-      <StageChecklist lead={lead} stage={lead.status_stage} />
-
       {/* Empresa */}
       <Card>
         <CardHeader className="pb-3">
@@ -204,13 +195,6 @@ function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: 
             <Input
               value={prospect.city ?? ""}
               onChange={(e) => setProspect((p) => ({ ...p, city: e.target.value }))}
-            />
-          </Field>
-          <Field label="Estado">
-            <Input
-              value={prospect.state ?? ""}
-              maxLength={2}
-              onChange={(e) => setProspect((p) => ({ ...p, state: e.target.value }))}
             />
           </Field>
           <Field label="Origem">
@@ -247,23 +231,11 @@ function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: 
               onChange={(e) => setQual((q) => ({ ...q, contact_name: e.target.value }))}
             />
           </Field>
-          <Field label="Cargo">
-            <Input
-              value={qual.job_title ?? ""}
-              onChange={(e) => setQual((q) => ({ ...q, job_title: e.target.value }))}
-            />
-          </Field>
           <Field label="E-mail">
             <Input
               type="email"
               value={qual.email ?? ""}
               onChange={(e) => setQual((q) => ({ ...q, email: e.target.value }))}
-            />
-          </Field>
-          <Field label="Telefone">
-            <Input
-              value={qual.phone ?? ""}
-              onChange={(e) => setQual((q) => ({ ...q, phone: e.target.value }))}
             />
           </Field>
           <Field label="Tipo de projeto">
@@ -289,79 +261,12 @@ function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: 
               onChange={(e) => setQual((q) => ({ ...q, desired_deadline: e.target.value }))}
             />
           </Field>
-          <Field label="Faixa de investimento" className="sm:col-span-2">
-            <Input
-              value={qual.investment_range ?? ""}
-              placeholder="Ex: R$ 3k–6k"
-              onChange={(e) => setQual((q) => ({ ...q, investment_range: e.target.value }))}
-            />
-          </Field>
-          <Field label="Objetivo do projeto" className="sm:col-span-2">
+          <Field label="O que precisa / objetivo" className="sm:col-span-2">
             <Textarea
               value={qual.project_objective ?? ""}
               onChange={(e) => setQual((q) => ({ ...q, project_objective: e.target.value }))}
               className="resize-none"
               rows={3}
-            />
-          </Field>
-        </CardContent>
-      </Card>
-
-      {/* Oportunidade */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <FileText className="size-4 text-muted-foreground" />
-            Oportunidade
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="Valor estimado (R$)">
-            <Input
-              inputMode="decimal"
-              value={opp.estimated_value ?? ""}
-              onChange={(e) => setOpp((o) => ({ ...o, estimated_value: parseMoney(e.target.value) }))}
-            />
-          </Field>
-          <Field label="Valor enviado (R$)">
-            <Input
-              inputMode="decimal"
-              value={opp.quote_value ?? ""}
-              onChange={(e) => setOpp((o) => ({ ...o, quote_value: parseMoney(e.target.value) }))}
-            />
-          </Field>
-          <Field label="Valor fechado (R$)">
-            <Input
-              inputMode="decimal"
-              value={opp.closed_value ?? ""}
-              onChange={(e) => setOpp((o) => ({ ...o, closed_value: parseMoney(e.target.value) }))}
-            />
-          </Field>
-          <Field label="Probabilidade de fechamento" className="sm:col-span-3">
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={opp.closing_probability ?? 0}
-                onChange={(e) =>
-                  setOpp((o) => ({ ...o, closing_probability: Number(e.target.value) }))
-                }
-                className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-muted accent-foreground"
-              />
-              <span className="w-12 text-right font-mono text-sm tabular-nums">
-                {opp.closing_probability ?? 0}%
-              </span>
-            </div>
-          </Field>
-          <Field label="Observações" className="sm:col-span-3">
-            <Textarea
-              value={opp.notes ?? ""}
-              onChange={(e) => setOpp((o) => ({ ...o, notes: e.target.value }))}
-              className="resize-none"
-              rows={3}
-              placeholder="Notas comerciais, contexto da negociação…"
             />
           </Field>
         </CardContent>
@@ -400,204 +305,30 @@ function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: 
         </CardContent>
       </Card>
 
+      {/* Observações */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <MessageSquare className="size-4 text-muted-foreground" />
+            Observações
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            value={opp.notes ?? ""}
+            onChange={(e) => setOpp((o) => ({ ...o, notes: e.target.value }))}
+            className="resize-none"
+            rows={3}
+            placeholder="Anotações livres sobre este lead…"
+          />
+        </CardContent>
+      </Card>
+
       {/* Sticky save bar */}
       <div className="sticky bottom-0 -mx-6 flex justify-end border-t bg-background/80 px-6 py-3 backdrop-blur">
         <Button type="submit" size="sm" disabled={saving} className="gap-1.5">
           <Save className="size-3.5" />
           {saving ? "Salvando…" : "Salvar alterações"}
-        </Button>
-      </div>
-    </form>
-  )
-}
-
-// ─── Briefing tab ────────────────────────────────────────────────────────────
-
-function BriefingTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: LeadEntry) => void }) {
-  const [briefing, setBriefing] = useState<BriefingData>({ ...EMPTY_BRIEFING, ...lead.briefing })
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setBriefing({ ...EMPTY_BRIEFING, ...lead.briefing })
-  }, [lead.id])
-
-  function set(key: keyof BriefingData, value: string | boolean | string[]) {
-    setBriefing((b) => ({ ...b, [key]: value }))
-  }
-
-  function toggleFeature(feature: string) {
-    setBriefing((b) => ({
-      ...b,
-      features: b.features.includes(feature)
-        ? b.features.filter((f) => f !== feature)
-        : [...b.features, feature],
-    }))
-  }
-
-  function handleSave(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    onUpdate(updateLeadBriefing(lead, briefing))
-    setTimeout(() => setSaving(false), 600)
-  }
-
-  const textareaProps = (key: keyof BriefingData) => ({
-    value: briefing[key] as string,
-    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => set(key, e.target.value),
-    className: "resize-none",
-    rows: 3 as const,
-  })
-
-  return (
-    <form onSubmit={handleSave} className="space-y-6 pb-8">
-      {/* Sobre o negócio */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Sobre o Negócio</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">O que a empresa faz?</label>
-            <Textarea {...textareaProps("what_do_you_do")} placeholder="Descreva as atividades principais…" />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Quais serviços oferece?</label>
-            <Textarea {...textareaProps("services_offered")} placeholder="Liste os principais serviços…" />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Qual o diferencial?</label>
-            <Textarea {...textareaProps("differentials")} placeholder="O que diferencia dos concorrentes?" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Objetivos */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Objetivos</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">
-              O que espera alcançar com o novo site?
-            </label>
-            <Textarea {...textareaProps("site_goals")} placeholder="Mais clientes, mais autoridade, mais vendas…" />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Quais são os principais objetivos?</label>
-            <Textarea {...textareaProps("main_objectives")} placeholder="Liste os objetivos prioritários…" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Público */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Público-Alvo</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Quem são seus clientes?</label>
-            <Textarea {...textareaProps("target_audience")} placeholder="Faixa etária, perfil, localização…" />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Existe uma persona principal?</label>
-            <Textarea {...textareaProps("main_persona")} placeholder="Descreva a persona ideal…" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Referências */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Referências</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Sites que gosta</label>
-            <Textarea
-              {...textareaProps("sites_liked")}
-              placeholder="URLs ou nomes de sites de referência…"
-              rows={2}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Sites concorrentes</label>
-            <Textarea
-              {...textareaProps("competitor_sites")}
-              placeholder="URLs de concorrentes diretos…"
-              rows={2}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Conteúdo */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Conteúdo existente</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {(
-              [
-                { key: "has_texts", label: "Já possui textos prontos?" },
-                { key: "has_images", label: "Já possui fotos/imagens?" },
-                { key: "has_branding", label: "Já possui identidade visual?" },
-              ] as const
-            ).map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-3 cursor-pointer group">
-                <div
-                  onClick={() => set(key, !briefing[key])}
-                  className={cn(
-                    "size-5 rounded border-2 flex items-center justify-center transition-colors",
-                    briefing[key]
-                      ? "border-foreground bg-foreground"
-                      : "border-border group-hover:border-muted-foreground"
-                  )}
-                >
-                  {briefing[key] && <Check className="size-3 text-background" />}
-                </div>
-                <span className="text-sm">{label}</span>
-              </label>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Funcionalidades */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Funcionalidades desejadas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {BRIEFING_FEATURES.map((feature) => {
-              const selected = briefing.features.includes(feature)
-              return (
-                <button
-                  key={feature}
-                  type="button"
-                  onClick={() => toggleFeature(feature)}
-                  className={cn(
-                    "h-8 px-3 rounded-full text-sm border transition-colors",
-                    selected
-                      ? "bg-foreground text-background border-foreground"
-                      : "border-border text-muted-foreground hover:border-foreground/50 hover:text-foreground"
-                  )}
-                >
-                  {feature}
-                </button>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end">
-        <Button type="submit" size="sm" disabled={saving} className="gap-1.5">
-          <Save className="size-3.5" />
-          {saving ? "Salvando…" : "Salvar briefing"}
         </Button>
       </div>
     </form>
@@ -882,7 +613,7 @@ function ActivitiesTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
-type TabId = "overview" | "briefing" | "timeline" | "comments" | "activities"
+type TabId = "overview" | "timeline" | "comments" | "activities"
 
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -913,6 +644,15 @@ export default function LeadDetailPage() {
     handleUpdate(moveLeadToStage(current, toStage))
   }
 
+  function handleMarkLost(current: LeadEntry) {
+    const reason = prompt("Motivo (opcional):") ?? ""
+    handleUpdate(markLeadLost(current, reason))
+  }
+
+  function handleReopen(current: LeadEntry) {
+    handleUpdate(reopenLead(current))
+  }
+
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
@@ -932,9 +672,6 @@ export default function LeadDetailPage() {
   const prevStage = getPrevStage(lead)
   const contactName = lead.qualification.contact_name?.trim() ?? ""
   const titleInitial = (lead.prospect.company || contactName || "?").trim().charAt(0).toUpperCase()
-  const completionByStage = Object.fromEntries(
-    Object.entries(lead.stage_completion).map(([s, c]) => [s, c.completion_percentage])
-  ) as Partial<Record<PipelineStage, number>>
 
   const waLink = lead.communication.whatsapp
     ? `https://wa.me/${lead.communication.whatsapp.replace(/\D/g, "")}`
@@ -992,7 +729,14 @@ export default function LeadDetailPage() {
               <h1 className="text-xl font-semibold leading-tight tracking-tight">
                 {lead.prospect.company || contactName || "Lead sem empresa"}
               </h1>
-              <StageBadge stage={lead.status_stage} solid />
+              {lead.lost ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium leading-5 text-muted-foreground">
+                  <Ban className="size-3" strokeWidth={2} />
+                  Perdido
+                </span>
+              ) : (
+                <StageBadge stage={lead.status_stage} solid />
+              )}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
               {contactName && (
@@ -1071,39 +815,63 @@ export default function LeadDetailPage() {
               Jornada comercial
             </p>
             <div className="flex items-center gap-1.5">
-              {prevStage && (
+              {lead.lost ? (
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => handleMoveStage(lead, prevStage)}
-                  className="h-7 gap-1.5 px-2.5 text-xs"
-                  title={`Retornar para ${PIPELINE_STAGE_LABEL[prevStage]}`}
-                >
-                  <ArrowLeft className="size-3.5" />
-                  <span className="hidden sm:inline">Voltar</span>
-                </Button>
-              )}
-              {nextStage ? (
-                <Button
-                  size="sm"
-                  onClick={() => handleMoveStage(lead, nextStage)}
+                  onClick={() => handleReopen(lead)}
                   className="h-7 gap-1.5 px-3 text-xs"
                 >
-                  Avançar para {PIPELINE_STAGE_LABEL[nextStage]}
-                  <ArrowRight className="size-3.5" />
+                  <RotateCcw className="size-3.5" />
+                  Reabrir
                 </Button>
               ) : (
-                <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-                  <Trophy className="size-3.5" />
-                  Cliente conquistado
-                </span>
+                <>
+                  {prevStage && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleMoveStage(lead, prevStage)}
+                      className="h-7 gap-1.5 px-2.5 text-xs"
+                      title={`Retornar para ${PIPELINE_STAGE_LABEL[prevStage]}`}
+                    >
+                      <ArrowLeft className="size-3.5" />
+                      <span className="hidden sm:inline">Voltar</span>
+                    </Button>
+                  )}
+                  {nextStage ? (
+                    <Button
+                      size="sm"
+                      onClick={() => handleMoveStage(lead, nextStage)}
+                      className="h-7 gap-1.5 px-3 text-xs"
+                    >
+                      Avançar para {PIPELINE_STAGE_LABEL[nextStage]}
+                      <ArrowRight className="size-3.5" />
+                    </Button>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                      <Trophy className="size-3.5" />
+                      Cliente conquistado
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleMarkLost(lead)}
+                    className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                    title="Marcar como perdido"
+                  >
+                    <Ban className="size-3.5" />
+                    <span className="hidden sm:inline">Perdido</span>
+                  </Button>
+                </>
               )}
             </div>
           </div>
           <PipelineTracker
             current={lead.status_stage}
-            completionByStage={completionByStage}
-            onSelect={(stage) => handleMoveStage(lead, stage)}
+            onSelect={lead.lost ? undefined : (stage) => handleMoveStage(lead, stage)}
+            className={lead.lost ? "opacity-50" : undefined}
           />
         </div>
 
@@ -1111,9 +879,6 @@ export default function LeadDetailPage() {
         <div className="flex items-center gap-1 overflow-x-auto">
           <TabBtn active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>
             Visão Geral
-          </TabBtn>
-          <TabBtn active={activeTab === "briefing"} onClick={() => setActiveTab("briefing")}>
-            Briefing
           </TabBtn>
           <TabBtn active={activeTab === "activities"} onClick={() => setActiveTab("activities")}>
             Atividades{pendingCount > 0 && (
@@ -1140,9 +905,6 @@ export default function LeadDetailPage() {
         <div className="max-w-2xl mx-auto px-6 pt-6">
           {activeTab === "overview" && (
             <OverviewTab lead={lead} onUpdate={handleUpdate} />
-          )}
-          {activeTab === "briefing" && (
-            <BriefingTab lead={lead} onUpdate={handleUpdate} />
           )}
           {activeTab === "timeline" && (
             <TimelineTab lead={lead} />
