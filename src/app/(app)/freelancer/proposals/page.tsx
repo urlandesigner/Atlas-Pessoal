@@ -61,6 +61,7 @@ import {
   emitClientsChange,
   getClientsServerSnapshot,
   getClientsSnapshot,
+  linkProposalToClient,
   saveClients,
   subscribeClientsStore,
   upsertClientFromApprovedProposal,
@@ -1021,6 +1022,15 @@ export default function ProposalsPage() {
       )
       saveLeads(nextLeads)
       emitLeadsChange()
+    }
+    // Link the proposal to the client, if any.
+    if (form.clientId) {
+      const clients = getClientsSnapshot()
+      const nextClients = clients.map((client) =>
+        client.id === form.clientId ? linkProposalToClient(client, proposal.id) : client
+      )
+      saveClients(nextClients)
+      emitClientsChange()
     }
     setIsCreating(false)
     setPrefillForm(null)

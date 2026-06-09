@@ -684,6 +684,18 @@ export function getLastInteraction(client: ClientEntry) {
   return candidates.sort((a, b) => b.localeCompare(a))[0] ?? client.created_at
 }
 
+export function linkProposalToClient(client: ClientEntry, proposalId: string): ClientEntry {
+  const updated = normalizeClient({ ...client, proposalId })
+  updated.timeline = [
+    ...client.timeline,
+    createTimelineEntry("proposal_approved", "Proposta vinculada ao cliente.", "Proposta comercial associada ao cliente."),
+  ]
+  updated.comments = client.comments
+  updated.requests = client.requests
+  updated.opportunities = client.opportunities
+  return updated
+}
+
 export function updateClientRecord(clients: ClientEntry[], updated: ClientEntry) {
   return clients.map((client) => (client.id === updated.id ? normalizeClient(updated) : client))
 }
