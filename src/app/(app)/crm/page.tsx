@@ -17,6 +17,12 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -337,8 +343,6 @@ function LeadListRow({
   lead: LeadEntry
   onDelete: (id: string) => void
 }) {
-  const [menuOpen, setMenuOpen] = useState(false)
-
   return (
     <Card className="group border-border/60 transition-shadow hover:border-border hover:shadow-sm">
       <CardContent className="p-0">
@@ -402,39 +406,28 @@ function LeadListRow({
                 <ExternalLink className="size-3.5" />
               </Button>
             </Link>
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 opacity-0 group-hover:opacity-100"
-                onClick={() => setMenuOpen((v) => !v)}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 opacity-0 group-hover:opacity-100 data-[popup-open]:opacity-100"
+                  />
+                }
               >
                 <MoreHorizontal className="size-3.5" />
-              </Button>
-              {menuOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                  <div className="absolute right-0 top-full z-20 mt-1 w-36 rounded-lg border bg-popover py-1 shadow-lg">
-                    <Link
-                      href={`/crm/${lead.id}`}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-muted"
-                    >
-                      Abrir
-                    </Link>
-                    <button
-                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-rose-600 transition-colors hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                      onClick={() => {
-                        setMenuOpen(false)
-                        onDelete(lead.id)
-                      }}
-                    >
-                      <Trash2 className="size-3.5" />
-                      Excluir
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-36">
+                <DropdownMenuItem render={<Link href={`/crm/${lead.id}`} />}>
+                  Abrir
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={() => onDelete(lead.id)}>
+                  <Trash2 className="size-3.5" />
+                  Excluir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </CardContent>
