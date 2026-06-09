@@ -104,7 +104,8 @@ function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: 
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-6 pb-24">
+    <form onSubmit={handleSave} className="pb-24">
+      <div className="gap-5 [&>*]:mb-5 [&>*]:break-inside-avoid lg:columns-2">
       {/* Empresa */}
       <Card>
         <CardHeader className="pb-3">
@@ -258,6 +259,7 @@ function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: 
           />
         </CardContent>
       </Card>
+      </div>
 
       {/* Sticky save bar */}
       <div className="sticky bottom-0 -mx-6 flex justify-end border-t bg-background/80 px-6 py-3 backdrop-blur">
@@ -533,7 +535,7 @@ export default function LeadDetailPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl px-6 pt-6">
+        <div className="mx-auto max-w-5xl px-6 pt-6">
           <OverviewTab lead={lead} onUpdate={handleUpdate} />
         </div>
       </div>
