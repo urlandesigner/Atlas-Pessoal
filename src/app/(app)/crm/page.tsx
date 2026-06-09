@@ -199,7 +199,7 @@ function LeadSheet({ open, onClose, onSave }: LeadSheetProps) {
           </form>
         </ScrollArea>
 
-        <SheetFooter className="gap-2 border-t px-6 py-4">
+        <SheetFooter className="flex-row gap-2 border-t px-6 py-4">
           <Button type="button" variant="outline" onClick={onClose} className="flex-1">
             Cancelar
           </Button>
