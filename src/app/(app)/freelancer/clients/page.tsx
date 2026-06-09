@@ -8,6 +8,8 @@ import {
   Check,
   Clock3,
   ExternalLink,
+  FilePlus2,
+  FileText,
   Mail,
   MessageCircle,
   Pencil,
@@ -580,6 +582,7 @@ export default function ClientsPage() {
                     <TableHead className="hidden sm:table-cell">Cliente</TableHead>
                     <TableHead className="hidden lg:table-cell">Empresa</TableHead>
                     <TableHead>Projeto</TableHead>
+                    <TableHead className="hidden lg:table-cell">Proposta</TableHead>
                     <TableHead className="hidden md:table-cell">Plano</TableHead>
                     <TableHead className="hidden lg:table-cell">Garantia</TableHead>
                     <TableHead className="hidden lg:table-cell">Última interação</TableHead>
@@ -592,6 +595,17 @@ export default function ClientsPage() {
                       <TableCell className="hidden sm:table-cell font-medium">{client.name}</TableCell>
                       <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">{client.company || "-"}</TableCell>
                       <TableCell className="text-sm">{client.projectName}</TableCell>
+                      <TableCell className="hidden lg:table-cell" onClick={(e) => e.stopPropagation()}>
+                        {client.proposalId ? (
+                          <Link href={`/freelancer/proposals?view=${client.proposalId}`} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-foreground transition-colors hover:border-foreground/30">
+                            <FileText className="size-3" /> Proposta
+                          </Link>
+                        ) : (
+                          <button onClick={() => {}} className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
+                            <FilePlus2 className="size-3.5" /> Criar
+                          </button>
+                        )}
+                      </TableCell>
                       <TableCell className="hidden md:table-cell"><Badge variant="outline" className={cn("font-normal text-xs", planClass[client.plan])}>{PLAN_LABEL[client.plan]}</Badge></TableCell>
                       <TableCell className="hidden lg:table-cell text-xs">{getWarrantyLabel(client)}</TableCell>
                       <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">{formatDate(getLastInteraction(client))}</TableCell>

@@ -76,6 +76,7 @@ export interface ClientComment {
 export interface ClientEntry {
   id: string
   leadId: string | null
+  proposalId: string | null
   name: string
   company: string | null
   phone: string | null
@@ -303,6 +304,7 @@ function normalizeClient(client: Partial<ClientEntry>): ClientEntry {
   return {
     id: client.id ?? createId("client"),
     leadId: client.leadId || null,
+    proposalId: client.proposalId || null,
     name,
     company: client.company?.trim() || null,
     phone: client.phone?.trim() || null,
@@ -617,6 +619,7 @@ export function createClientFromLead(lead: LeadEntry): ClientEntry {
 
   return normalizeClient({
     leadId: lead.id,
+    proposalId: lead.proposal_id || null,
     name,
     company: lead.prospect.company?.trim() || null,
     phone: (lead.qualification.phone || lead.communication.phone)?.trim() || null,
