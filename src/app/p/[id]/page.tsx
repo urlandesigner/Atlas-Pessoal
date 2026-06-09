@@ -273,40 +273,59 @@ export default function ProposalWebPage() {
             <div className="invest-card overflow-hidden rounded-3xl">
               <div className="invest-glow" aria-hidden />
               <div className="relative p-8 sm:p-12">
-                {addonTotal > 0 ? (
-                  <div className="mb-8 flex flex-col gap-3 border-b border-[var(--line)] pb-8 text-[var(--soft)]">
-                    <Line label="Desenvolvimento" value={money(baseTotal)} />
-                    {includeDomain ? <Line label="Domínio (anual)" value={`+ ${money(DOMAIN_ADDON_PRICE)}`} /> : null}
-                    {includeHosting ? <Line label="Hospedagem (anual)" value={`+ ${money(HOSTING_ADDON_PRICE)}`} /> : null}
-                  </div>
-                ) : null}
+                {proposal.isPartnership ? (
+                  <>
+                    <p className="font-mono text-xs uppercase tracking-[0.32em] text-[var(--muted)]">
+                      Investimento total
+                    </p>
+                    <p className="invest-total mt-3 text-[clamp(3rem,9vw,6rem)] font-medium leading-none tracking-[-0.04em]">
+                      Gratuito
+                    </p>
+                    <span className="mt-6 inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--accent)]/10 px-4 py-1.5 font-mono text-xs uppercase tracking-[0.28em] text-[var(--accent-2)]">
+                      Parceria
+                    </span>
+                    <p className="mt-6 max-w-md leading-relaxed text-[var(--soft)]">
+                      Projeto executado em parceria, sem cobrança.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {addonTotal > 0 ? (
+                      <div className="mb-8 flex flex-col gap-3 border-b border-[var(--line)] pb-8 text-[var(--soft)]">
+                        <Line label="Desenvolvimento" value={money(baseTotal)} />
+                        {includeDomain ? <Line label="Domínio (anual)" value={`+ ${money(DOMAIN_ADDON_PRICE)}`} /> : null}
+                        {includeHosting ? <Line label="Hospedagem (anual)" value={`+ ${money(HOSTING_ADDON_PRICE)}`} /> : null}
+                      </div>
+                    ) : null}
 
-                <p className="font-mono text-xs uppercase tracking-[0.32em] text-[var(--muted)]">
-                  Investimento total
-                </p>
-                <p className="invest-total mt-3 text-[clamp(3rem,9vw,6rem)] font-medium leading-none tracking-[-0.04em] tabular-nums">
-                  {money(proposal.totalValue)}
-                </p>
+                    <p className="font-mono text-xs uppercase tracking-[0.32em] text-[var(--muted)]">
+                      Investimento total
+                    </p>
+                    <p className="invest-total mt-3 text-[clamp(3rem,9vw,6rem)] font-medium leading-none tracking-[-0.04em] tabular-nums">
+                      {money(proposal.totalValue)}
+                    </p>
 
-                <div className="mt-10 grid gap-5 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-[var(--line)] p-5">
-                    <p className="font-mono text-[0.7rem] uppercase tracking-[0.28em] text-[var(--muted)]">
-                      Entrada
-                    </p>
-                    <p className="mt-2 text-2xl font-medium tabular-nums tracking-tight">{money(entryValue)}</p>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      Saldo de {money(remaining)} na entrega
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-[var(--line)] p-5">
-                    <p className="font-mono text-[0.7rem] uppercase tracking-[0.28em] text-[var(--muted)]">
-                      Forma de pagamento
-                    </p>
-                    <p className="mt-2 leading-relaxed text-[var(--soft)]">
-                      {proposal.paymentMethod || "A combinar"}
-                    </p>
-                  </div>
-                </div>
+                    <div className="mt-10 grid gap-5 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-[var(--line)] p-5">
+                        <p className="font-mono text-[0.7rem] uppercase tracking-[0.28em] text-[var(--muted)]">
+                          Entrada
+                        </p>
+                        <p className="mt-2 text-2xl font-medium tabular-nums tracking-tight">{money(entryValue)}</p>
+                        <p className="mt-1 text-sm text-[var(--muted)]">
+                          Saldo de {money(remaining)} na entrega
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-[var(--line)] p-5">
+                        <p className="font-mono text-[0.7rem] uppercase tracking-[0.28em] text-[var(--muted)]">
+                          Forma de pagamento
+                        </p>
+                        <p className="mt-2 leading-relaxed text-[var(--soft)]">
+                          {proposal.paymentMethod || "A combinar"}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </Reveal>

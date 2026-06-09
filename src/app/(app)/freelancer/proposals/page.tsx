@@ -233,9 +233,13 @@ ul{padding-left:20px}
 <div class="blk"><h2>Objetivo</h2><p>${form.objective || "Objetivo a definir."}</p></div>
 <div class="blk"><h2>Escopo</h2>${scope}</div>
 <div class="blk"><h2>Investimento</h2>
-${printAddonTotal > 0 ? `<table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:15px"><tr><td>Desenvolvimento</td><td style="text-align:right">${money(printBaseTotal)}</td></tr>${printIncludeDomain ? `<tr><td>Domínio (anual)</td><td style="text-align:right">+ ${money(DOMAIN_ADDON_PRICE)}</td></tr>` : ""}${printIncludeHosting ? `<tr><td>Hospedagem (anual)</td><td style="text-align:right">+ ${money(HOSTING_ADDON_PRICE)}</td></tr>` : ""}</table>` : ""}
+${
+  form.isPartnership
+    ? `<p class="price">Gratuito · Parceria</p><p>Projeto executado em parceria, sem cobrança.</p>`
+    : `${printAddonTotal > 0 ? `<table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:15px"><tr><td>Desenvolvimento</td><td style="text-align:right">${money(printBaseTotal)}</td></tr>${printIncludeDomain ? `<tr><td>Domínio (anual)</td><td style="text-align:right">+ ${money(DOMAIN_ADDON_PRICE)}</td></tr>` : ""}${printIncludeHosting ? `<tr><td>Hospedagem (anual)</td><td style="text-align:right">+ ${money(HOSTING_ADDON_PRICE)}</td></tr>` : ""}</table>` : ""}
 <p class="price">${money(total)}</p>
-<p>Pagamento: <strong>${form.paymentMethod || "A definir"}</strong></p></div>
+<p>Pagamento: <strong>${form.paymentMethod || "A definir"}</strong></p>`
+}</div>
 <div class="blk"><h2>Inclusos</h2><ul>${form.included.map((item) => `<li>${item}</li>`).join("")}</ul></div>
 <div class="blk"><h2>Não inclusos</h2><ul>${form.notIncluded.map((item) => `<li>${item}</li>`).join("")}</ul></div>
 ${form.notes ? `<div class="blk"><h2>Observações</h2><p>${form.notes}</p></div>` : ""}
@@ -318,6 +322,15 @@ function ProposalPreview({ form }: { form: ProposalForm }) {
       </PreviewSection>
 
       <PreviewSection title="Investimento">
+        {form.isPartnership ? (
+          <div className="rounded-xl bg-foreground p-5 text-background">
+            <p className="text-sm opacity-70">Investimento</p>
+            <p className="mt-1 text-3xl font-semibold tracking-tight">Gratuito</p>
+            <span className="mt-3 inline-flex items-center rounded-full border border-background/25 bg-background/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em]">
+              Parceria
+            </span>
+          </div>
+        ) : (
         <div className="rounded-xl bg-foreground p-5 text-background">
           {addonTotal > 0 && (
             <div className="mb-4 space-y-2 border-b border-background/15 pb-4 text-sm">
@@ -348,6 +361,7 @@ function ProposalPreview({ form }: { form: ProposalForm }) {
             </p>
           </div>
         </div>
+        )}
       </PreviewSection>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -550,9 +564,18 @@ function ProposalEditor({
 
   const includeDomain = form.included.some((i) => /(domínio|dominio)/i.test(i))
   const includeHosting = form.included.some((i) => /hospedagem/i.test(i))
+  const partnership = form.isPartnership
 
   function set<K extends keyof ProposalForm>(field: K, value: ProposalForm[K]) {
     setForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  function togglePartnership(checked: boolean) {
+    setForm((prev) =>
+      checked
+        ? { ...prev, isPartnership: true, totalValue: "0", entryValue: "0", paymentMethod: "" }
+        : { ...prev, isPartnership: false }
+    )
   }
 
   function toggleDomain(checked: boolean) {
@@ -694,60 +717,74 @@ function ProposalEditor({
               </FormSection>
 
               <FormSection title="Investimento">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Valor total">
-                    <Input
-                      type="number"
-                      value={form.totalValue}
-                      onChange={(event) => set("totalValue", event.target.value)}
-                      placeholder="4500"
-                    />
-                  </Field>
-                  <Field label="Entrada">
-                    <div className="grid grid-cols-[1fr_8rem] gap-2">
-                      <Input value={form.entryValue} onChange={(event) => set("entryValue", event.target.value)} />
-                      <select
-                        value={form.entryMode}
-                        onChange={(event) => set("entryMode", event.target.value as EntryMode)}
-                        className="h-10 rounded-md border border-input bg-transparent px-3 text-base outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/50"
-                      >
-                        <option value="percent">%</option>
-                        <option value="value">R$</option>
-                      </select>
-                    </div>
-                  </Field>
-                  <Field label="Saldo restante">
-                    <Input value={money(getRemainingValue(form))} readOnly />
-                  </Field>
-                  <Field label="Forma de pagamento">
-                    <Input
-                      value={form.paymentMethod}
-                      onChange={(event) => set("paymentMethod", event.target.value)}
-                      placeholder="50% na aprovação/publicação e 50% pra 30 dias"
-                    />
-                  </Field>
-                </div>
+                <AddonToggle
+                  label="Parceria (gratuito)"
+                  detail="Zera valor e forma de pagamento. Aparece como “Gratuito · Parceria” na proposta."
+                  checked={partnership}
+                  onToggle={togglePartnership}
+                />
+                {partnership ? (
+                  <div className="rounded-lg border border-dashed bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
+                    Projeto em parceria — sem cobrança. O cliente verá <strong className="text-foreground">Gratuito · Parceria</strong> no lugar do investimento.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="Valor total">
+                      <Input
+                        type="number"
+                        value={form.totalValue}
+                        onChange={(event) => set("totalValue", event.target.value)}
+                        placeholder="4500"
+                      />
+                    </Field>
+                    <Field label="Entrada">
+                      <div className="grid grid-cols-[1fr_8rem] gap-2">
+                        <Input value={form.entryValue} onChange={(event) => set("entryValue", event.target.value)} />
+                        <select
+                          value={form.entryMode}
+                          onChange={(event) => set("entryMode", event.target.value as EntryMode)}
+                          className="h-10 rounded-md border border-input bg-transparent px-3 text-base outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/50"
+                        >
+                          <option value="percent">%</option>
+                          <option value="value">R$</option>
+                        </select>
+                      </div>
+                    </Field>
+                    <Field label="Saldo restante">
+                      <Input value={money(getRemainingValue(form))} readOnly />
+                    </Field>
+                    <Field label="Forma de pagamento">
+                      <Input
+                        value={form.paymentMethod}
+                        onChange={(event) => set("paymentMethod", event.target.value)}
+                        placeholder="50% na aprovação/publicação e 50% pra 30 dias"
+                      />
+                    </Field>
+                  </div>
+                )}
               </FormSection>
 
-              <FormSection title="Domínio e Hospedagem">
-                <p className="text-sm text-muted-foreground">
-                  Cobranças anuais — marque para incluir na proposta e somar ao orçamento.
-                </p>
-                <AddonToggle
-                  label="Domínio"
-                  detail="Registro anual do domínio"
-                  price={DOMAIN_ADDON_PRICE}
-                  checked={includeDomain}
-                  onToggle={toggleDomain}
-                />
-                <AddonToggle
-                  label="Hospedagem"
-                  detail="Plano de hospedagem anual"
-                  price={HOSTING_ADDON_PRICE}
-                  checked={includeHosting}
-                  onToggle={toggleHosting}
-                />
-              </FormSection>
+              {partnership ? null : (
+                <FormSection title="Domínio e Hospedagem">
+                  <p className="text-sm text-muted-foreground">
+                    Cobranças anuais — marque para incluir na proposta e somar ao orçamento.
+                  </p>
+                  <AddonToggle
+                    label="Domínio"
+                    detail="Registro anual do domínio"
+                    price={DOMAIN_ADDON_PRICE}
+                    checked={includeDomain}
+                    onToggle={toggleDomain}
+                  />
+                  <AddonToggle
+                    label="Hospedagem"
+                    detail="Plano de hospedagem anual"
+                    price={HOSTING_ADDON_PRICE}
+                    checked={includeHosting}
+                    onToggle={toggleHosting}
+                  />
+                </FormSection>
+              )}
 
               <FormSection title="Inclusos">
                 <EditableList
@@ -833,7 +870,7 @@ function AddonToggle({
 }: {
   label: string
   detail: string
-  price: number
+  price?: number
   checked: boolean
   onToggle: (checked: boolean) => void
 }) {
@@ -858,9 +895,11 @@ function AddonToggle({
         <p className="text-sm font-medium">{label}</p>
         <p className="text-xs text-muted-foreground">{detail}</p>
       </div>
-      <span className={cn("shrink-0 text-sm font-medium tabular-nums", checked ? "text-foreground" : "text-muted-foreground")}>
-        + {money(price)}/ano
-      </span>
+      {typeof price === "number" ? (
+        <span className={cn("shrink-0 text-sm font-medium tabular-nums", checked ? "text-foreground" : "text-muted-foreground")}>
+          + {money(price)}/ano
+        </span>
+      ) : null}
     </button>
   )
 }
@@ -891,7 +930,7 @@ function ProposalView({
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                {proposal.clientName} · {money(proposal.totalValue)} · {proposal.estimatedDeadline || "Prazo a definir"}
+                {proposal.clientName} · {proposal.isPartnership ? "Gratuito · Parceria" : money(proposal.totalValue)} · {proposal.estimatedDeadline || "Prazo a definir"}
               </p>
             </SheetHeader>
             <ScrollArea className="min-h-0 flex-1 bg-muted/20">
@@ -1170,7 +1209,10 @@ export default function ProposalsPage() {
                       </Badge>
                     </div>
                     <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                      <Info label="Valor total" value={money(proposal.totalValue)} />
+                      <Info
+                        label="Valor total"
+                        value={proposal.isPartnership ? "Gratuito · Parceria" : money(proposal.totalValue)}
+                      />
                       <Info label="Prazo" value={proposal.estimatedDeadline || "A definir"} />
                       <Info label="Validade" value={formatDate(proposal.validUntil)} />
                     </div>

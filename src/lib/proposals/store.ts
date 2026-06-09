@@ -35,6 +35,7 @@ export interface ProposalEntry {
   entryMode: EntryMode
   entryValue: number
   paymentMethod: string
+  isPartnership: boolean
   included: string[]
   notIncluded: string[]
   notes: string | null
@@ -58,6 +59,7 @@ export interface ProposalForm {
   entryMode: EntryMode
   entryValue: string
   paymentMethod: string
+  isPartnership: boolean
   included: string[]
   notIncluded: string[]
   notes: string
@@ -118,6 +120,7 @@ export const EMPTY_PROPOSAL_FORM: ProposalForm = {
   entryMode: "percent",
   entryValue: "50",
   paymentMethod: DEFAULT_PAYMENT_METHOD,
+  isPartnership: false,
   included: [],
   notIncluded: [],
   notes: "",
@@ -256,6 +259,7 @@ function normalizeScope(value: unknown): ProposalScopeCategory[] {
 function normalizeProposal(entry: Partial<ProposalEntry>): ProposalEntry {
   const createdAt = entry.created_at ?? new Date().toISOString()
   const proposalDate = entry.proposalDate || new Date().toISOString().split("T")[0]
+  const isPartnership = Boolean(entry.isPartnership)
 
   return {
     id: entry.id ?? createId("proposal"),
@@ -269,10 +273,11 @@ function normalizeProposal(entry: Partial<ProposalEntry>): ProposalEntry {
     objective: entry.objective?.trim() || "",
     scope: normalizeScope(entry.scope),
     estimatedDeadline: entry.estimatedDeadline?.trim() || "",
-    totalValue: normalizeNumber(entry.totalValue),
+    totalValue: isPartnership ? 0 : normalizeNumber(entry.totalValue),
     entryMode: entry.entryMode === "value" ? "value" : "percent",
-    entryValue: normalizeNumber(entry.entryValue),
-    paymentMethod: entry.paymentMethod?.trim() || "",
+    entryValue: isPartnership ? 0 : normalizeNumber(entry.entryValue),
+    paymentMethod: isPartnership ? "" : entry.paymentMethod?.trim() || "",
+    isPartnership,
     included: normalizeStringList(entry.included),
     notIncluded: normalizeStringList(entry.notIncluded),
     notes: entry.notes?.trim() || null,
@@ -358,6 +363,7 @@ export function createProposalForm(entry: ProposalEntry): ProposalForm {
     entryMode: entry.entryMode,
     entryValue: entry.entryValue ? String(entry.entryValue) : "",
     paymentMethod: entry.paymentMethod,
+    isPartnership: entry.isPartnership,
     included: [...entry.included],
     notIncluded: [...entry.notIncluded],
     notes: entry.notes ?? "",
@@ -382,6 +388,7 @@ export function createProposalFromForm(form: ProposalForm): ProposalEntry {
     entryMode: form.entryMode,
     entryValue: normalizeNumber(form.entryValue),
     paymentMethod: form.paymentMethod,
+    isPartnership: form.isPartnership,
     included: form.included,
     notIncluded: form.notIncluded,
     notes: form.notes,
@@ -414,6 +421,7 @@ export function updateProposalInCollection(
           entryMode: form.entryMode,
           entryValue: normalizeNumber(form.entryValue),
           paymentMethod: form.paymentMethod,
+          isPartnership: form.isPartnership,
           included: form.included,
           notIncluded: form.notIncluded,
           notes: form.notes,
