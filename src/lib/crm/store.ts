@@ -981,6 +981,14 @@ export function getNextStage(lead: LeadEntry): PipelineStage | null {
   return null
 }
 
+export function getPrevStage(lead: LeadEntry): PipelineStage | null {
+  const currentIndex = PIPELINE_STAGES.indexOf(lead.status_stage)
+  if (currentIndex > 0) {
+    return PIPELINE_STAGES[currentIndex - 1]
+  }
+  return null
+}
+
 export function canAdvanceStage(lead: LeadEntry): boolean {
   return getNextStage(lead) !== null
 }

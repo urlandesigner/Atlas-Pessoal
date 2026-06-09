@@ -34,7 +34,6 @@ import { cn } from "@/lib/utils"
 import {
   addActivityToLead,
   addCommentToLead,
-  advanceLeadStage,
   ACTIVITY_TYPE_LABEL,
   ACTIVITY_TYPE_OPTIONS,
   BRIEFING_FEATURES,
@@ -42,8 +41,11 @@ import {
   getLeadsServerSnapshot,
   getLeadsSnapshot,
   getNextStage,
+  getPrevStage,
   LEAD_ORIGIN_LABEL,
   LEAD_ORIGIN_OPTIONS,
+  moveLeadToStage,
+  PIPELINE_STAGES,
   PIPELINE_STAGE_LABEL,
   PROJECT_TYPE_LABEL,
   PROJECT_TYPE_OPTIONS,
@@ -907,11 +909,12 @@ export default function LeadDetailPage() {
     router.push("/crm")
   }
 
-  function handleAdvance(current: LeadEntry) {
-    const next = getNextStage(current)
-    if (!next) return
-    if (!confirm(`Avançar este lead para "${PIPELINE_STAGE_LABEL[next]}"?`)) return
-    handleUpdate(advanceLeadStage(current))
+  function handleMoveStage(current: LeadEntry, toStage: PipelineStage) {
+    if (toStage === current.status_stage) return
+    const forward = PIPELINE_STAGES.indexOf(toStage) > PIPELINE_STAGES.indexOf(current.status_stage)
+    const verb = forward ? "Avançar" : "Retornar"
+    if (!confirm(`${verb} este lead para "${PIPELINE_STAGE_LABEL[toStage]}"?`)) return
+    handleUpdate(moveLeadToStage(current, toStage))
   }
 
   if (!lead) {
@@ -930,6 +933,7 @@ export default function LeadDetailPage() {
 
   const pendingCount = lead.activities.filter((a) => a.status === "pending").length
   const nextStage = getNextStage(lead)
+  const prevStage = getPrevStage(lead)
   const contactName = lead.qualification.contact_name?.trim() ?? ""
   const titleInitial = (lead.prospect.company || contactName || "?").trim().charAt(0).toUpperCase()
   const completionByStage = Object.fromEntries(
@@ -1066,27 +1070,45 @@ export default function LeadDetailPage() {
 
         {/* Pipeline tracker — the hero */}
         <div className="mb-5 rounded-2xl border border-border/70 bg-gradient-to-b from-muted/40 to-card px-4 py-4 sm:px-6">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
               Jornada comercial
             </p>
-            {nextStage ? (
-              <Button
-                size="sm"
-                onClick={() => handleAdvance(lead)}
-                className="h-7 gap-1.5 px-3 text-xs"
-              >
-                Avançar para {PIPELINE_STAGE_LABEL[nextStage]}
-                <ArrowRight className="size-3.5" />
-              </Button>
-            ) : (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-                <Trophy className="size-3.5" />
-                Cliente conquistado
-              </span>
-            )}
+            <div className="flex items-center gap-1.5">
+              {prevStage && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleMoveStage(lead, prevStage)}
+                  className="h-7 gap-1.5 px-2.5 text-xs"
+                  title={`Retornar para ${PIPELINE_STAGE_LABEL[prevStage]}`}
+                >
+                  <ArrowLeft className="size-3.5" />
+                  <span className="hidden sm:inline">Voltar</span>
+                </Button>
+              )}
+              {nextStage ? (
+                <Button
+                  size="sm"
+                  onClick={() => handleMoveStage(lead, nextStage)}
+                  className="h-7 gap-1.5 px-3 text-xs"
+                >
+                  Avançar para {PIPELINE_STAGE_LABEL[nextStage]}
+                  <ArrowRight className="size-3.5" />
+                </Button>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                  <Trophy className="size-3.5" />
+                  Cliente conquistado
+                </span>
+              )}
+            </div>
           </div>
-          <PipelineTracker current={lead.status_stage} completionByStage={completionByStage} />
+          <PipelineTracker
+            current={lead.status_stage}
+            completionByStage={completionByStage}
+            onSelect={(stage) => handleMoveStage(lead, stage)}
+          />
         </div>
 
         {/* Tabs */}
