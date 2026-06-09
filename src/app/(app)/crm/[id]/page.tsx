@@ -45,7 +45,6 @@ import {
   LEAD_ORIGIN_LABEL,
   LEAD_ORIGIN_OPTIONS,
   moveLeadToStage,
-  PIPELINE_STAGES,
   PIPELINE_STAGE_LABEL,
   PROJECT_TYPE_LABEL,
   PROJECT_TYPE_OPTIONS,
@@ -911,9 +910,6 @@ export default function LeadDetailPage() {
 
   function handleMoveStage(current: LeadEntry, toStage: PipelineStage) {
     if (toStage === current.status_stage) return
-    const forward = PIPELINE_STAGES.indexOf(toStage) > PIPELINE_STAGES.indexOf(current.status_stage)
-    const verb = forward ? "Avançar" : "Retornar"
-    if (!confirm(`${verb} este lead para "${PIPELINE_STAGE_LABEL[toStage]}"?`)) return
     handleUpdate(moveLeadToStage(current, toStage))
   }
 
