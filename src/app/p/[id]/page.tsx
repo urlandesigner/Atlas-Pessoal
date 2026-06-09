@@ -274,20 +274,44 @@ export default function ProposalWebPage() {
               <div className="invest-glow" aria-hidden />
               <div className="relative p-8 sm:p-12">
                 {proposal.isPartnership ? (
-                  <>
-                    <p className="font-mono text-xs uppercase tracking-[0.32em] text-[var(--muted)]">
-                      Investimento total
-                    </p>
-                    <p className="invest-total mt-3 text-[clamp(3rem,9vw,6rem)] font-medium leading-none tracking-[-0.04em]">
-                      Gratuito
-                    </p>
-                    <span className="mt-6 inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--accent)]/10 px-4 py-1.5 font-mono text-xs uppercase tracking-[0.28em] text-[var(--accent-2)]">
-                      Parceria
-                    </span>
-                    <p className="mt-6 max-w-md leading-relaxed text-[var(--soft)]">
-                      Projeto executado em parceria, sem cobrança.
-                    </p>
-                  </>
+                  addonTotal > 0 ? (
+                    <>
+                      <div className="mb-8 flex flex-col gap-3 border-b border-[var(--line)] pb-8 text-[var(--soft)]">
+                        <div className="flex items-center justify-between gap-4">
+                          <span>Desenvolvimento</span>
+                          <span className="font-mono text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]">
+                            Gratuito · Parceria
+                          </span>
+                        </div>
+                        {includeDomain ? <Line label="Domínio (anual)" value={money(DOMAIN_ADDON_PRICE)} /> : null}
+                        {includeHosting ? <Line label="Hospedagem (anual)" value={money(HOSTING_ADDON_PRICE)} /> : null}
+                      </div>
+                      <p className="font-mono text-xs uppercase tracking-[0.32em] text-[var(--muted)]">
+                        Total anual
+                      </p>
+                      <p className="invest-total mt-3 text-[clamp(3rem,9vw,6rem)] font-medium leading-none tracking-[-0.04em] tabular-nums">
+                        {money(addonTotal)}
+                      </p>
+                      <p className="mt-6 max-w-md leading-relaxed text-[var(--soft)]">
+                        Desenvolvimento em parceria, sem cobrança. Domínio e hospedagem são cobranças anuais à parte.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-mono text-xs uppercase tracking-[0.32em] text-[var(--muted)]">
+                        Investimento total
+                      </p>
+                      <p className="invest-total mt-3 text-[clamp(3rem,9vw,6rem)] font-medium leading-none tracking-[-0.04em]">
+                        Gratuito
+                      </p>
+                      <span className="mt-6 inline-flex items-center rounded-full border border-[var(--line)] bg-[var(--accent)]/10 px-4 py-1.5 font-mono text-xs uppercase tracking-[0.28em] text-[var(--accent-2)]">
+                        Parceria
+                      </span>
+                      <p className="mt-6 max-w-md leading-relaxed text-[var(--soft)]">
+                        Projeto executado em parceria, sem cobrança.
+                      </p>
+                    </>
+                  )
                 ) : (
                   <>
                     {addonTotal > 0 ? (

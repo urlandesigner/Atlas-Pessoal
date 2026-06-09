@@ -235,7 +235,11 @@ ul{padding-left:20px}
 <div class="blk"><h2>Investimento</h2>
 ${
   form.isPartnership
-    ? `<p class="price">Gratuito · Parceria</p><p>Projeto executado em parceria, sem cobrança.</p>`
+    ? printAddonTotal > 0
+      ? `<table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:15px"><tr><td>Desenvolvimento</td><td style="text-align:right"><strong>Gratuito · Parceria</strong></td></tr>${printIncludeDomain ? `<tr><td>Domínio (anual)</td><td style="text-align:right">${money(DOMAIN_ADDON_PRICE)}</td></tr>` : ""}${printIncludeHosting ? `<tr><td>Hospedagem (anual)</td><td style="text-align:right">${money(HOSTING_ADDON_PRICE)}</td></tr>` : ""}</table>
+<p class="price">${money(printAddonTotal)}</p>
+<p>Desenvolvimento em parceria, sem cobrança. Domínio e hospedagem são cobranças anuais à parte.</p>`
+      : `<p class="price">Gratuito · Parceria</p><p>Projeto executado em parceria, sem cobrança.</p>`
     : `${printAddonTotal > 0 ? `<table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:15px"><tr><td>Desenvolvimento</td><td style="text-align:right">${money(printBaseTotal)}</td></tr>${printIncludeDomain ? `<tr><td>Domínio (anual)</td><td style="text-align:right">+ ${money(DOMAIN_ADDON_PRICE)}</td></tr>` : ""}${printIncludeHosting ? `<tr><td>Hospedagem (anual)</td><td style="text-align:right">+ ${money(HOSTING_ADDON_PRICE)}</td></tr>` : ""}</table>` : ""}
 <p class="price">${money(total)}</p>
 <p>Pagamento: <strong>${form.paymentMethod || "A definir"}</strong></p>`
@@ -323,13 +327,38 @@ function ProposalPreview({ form }: { form: ProposalForm }) {
 
       <PreviewSection title="Investimento">
         {form.isPartnership ? (
-          <div className="rounded-xl bg-foreground p-5 text-background">
-            <p className="text-sm opacity-70">Investimento</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight">Gratuito</p>
-            <span className="mt-3 inline-flex items-center rounded-full border border-background/25 bg-background/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em]">
-              Parceria
-            </span>
-          </div>
+          addonTotal > 0 ? (
+            <div className="rounded-xl bg-foreground p-5 text-background">
+              <div className="mb-4 space-y-2 border-b border-background/15 pb-4 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="opacity-70">Desenvolvimento</span>
+                  <span className="font-medium">Gratuito · Parceria</span>
+                </div>
+                {previewIncludeDomain && (
+                  <div className="flex justify-between opacity-70">
+                    <span>Domínio (anual)</span>
+                    <span>{money(DOMAIN_ADDON_PRICE)}</span>
+                  </div>
+                )}
+                {previewIncludeHosting && (
+                  <div className="flex justify-between opacity-70">
+                    <span>Hospedagem (anual)</span>
+                    <span>{money(HOSTING_ADDON_PRICE)}</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-sm opacity-70">Total</p>
+              <p className="mt-1 text-3xl font-semibold tracking-tight">{money(addonTotal)}</p>
+            </div>
+          ) : (
+            <div className="rounded-xl bg-foreground p-5 text-background">
+              <p className="text-sm opacity-70">Investimento</p>
+              <p className="mt-1 text-3xl font-semibold tracking-tight">Gratuito</p>
+              <span className="mt-3 inline-flex items-center rounded-full border border-background/25 bg-background/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em]">
+                Parceria
+              </span>
+            </div>
+          )
         ) : (
         <div className="rounded-xl bg-foreground p-5 text-background">
           {addonTotal > 0 && (
@@ -571,11 +600,14 @@ function ProposalEditor({
   }
 
   function togglePartnership(checked: boolean) {
-    setForm((prev) =>
-      checked
-        ? { ...prev, isPartnership: true, totalValue: "0", entryValue: "0", paymentMethod: "" }
-        : { ...prev, isPartnership: false }
-    )
+    setForm((prev) => {
+      if (!checked) return { ...prev, isPartnership: false }
+      // Parceria zera só o desenvolvimento; domínio/hospedagem continuam no total.
+      const addonTotal =
+        (prev.included.some((i) => /(domínio|dominio)/i.test(i)) ? DOMAIN_ADDON_PRICE : 0) +
+        (prev.included.some((i) => /hospedagem/i.test(i)) ? HOSTING_ADDON_PRICE : 0)
+      return { ...prev, isPartnership: true, totalValue: String(addonTotal), entryValue: "0", paymentMethod: "" }
+    })
   }
 
   function toggleDomain(checked: boolean) {
@@ -725,7 +757,7 @@ function ProposalEditor({
                 />
                 {partnership ? (
                   <div className="rounded-lg border border-dashed bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
-                    Projeto em parceria — sem cobrança. O cliente verá <strong className="text-foreground">Gratuito · Parceria</strong> no lugar do investimento.
+                    Desenvolvimento em parceria — sem cobrança. O cliente verá <strong className="text-foreground">Gratuito · Parceria</strong>. Domínio e hospedagem, se marcados abaixo, continuam cobrados à parte.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -764,27 +796,25 @@ function ProposalEditor({
                 )}
               </FormSection>
 
-              {partnership ? null : (
-                <FormSection title="Domínio e Hospedagem">
-                  <p className="text-sm text-muted-foreground">
-                    Cobranças anuais — marque para incluir na proposta e somar ao orçamento.
-                  </p>
-                  <AddonToggle
-                    label="Domínio"
-                    detail="Registro anual do domínio"
-                    price={DOMAIN_ADDON_PRICE}
-                    checked={includeDomain}
-                    onToggle={toggleDomain}
-                  />
-                  <AddonToggle
-                    label="Hospedagem"
-                    detail="Plano de hospedagem anual"
-                    price={HOSTING_ADDON_PRICE}
-                    checked={includeHosting}
-                    onToggle={toggleHosting}
-                  />
-                </FormSection>
-              )}
+              <FormSection title="Domínio e Hospedagem">
+                <p className="text-sm text-muted-foreground">
+                  Cobranças anuais — marque para incluir na proposta e somar ao orçamento.
+                </p>
+                <AddonToggle
+                  label="Domínio"
+                  detail="Registro anual do domínio"
+                  price={DOMAIN_ADDON_PRICE}
+                  checked={includeDomain}
+                  onToggle={toggleDomain}
+                />
+                <AddonToggle
+                  label="Hospedagem"
+                  detail="Plano de hospedagem anual"
+                  price={HOSTING_ADDON_PRICE}
+                  checked={includeHosting}
+                  onToggle={toggleHosting}
+                />
+              </FormSection>
 
               <FormSection title="Inclusos">
                 <EditableList
@@ -930,7 +960,7 @@ function ProposalView({
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                {proposal.clientName} · {proposal.isPartnership ? "Gratuito · Parceria" : money(proposal.totalValue)} · {proposal.estimatedDeadline || "Prazo a definir"}
+                {proposal.clientName} · {proposal.isPartnership ? (proposal.totalValue > 0 ? `Gratuito · Parceria + ${money(proposal.totalValue)}` : "Gratuito · Parceria") : money(proposal.totalValue)} · {proposal.estimatedDeadline || "Prazo a definir"}
               </p>
             </SheetHeader>
             <ScrollArea className="min-h-0 flex-1 bg-muted/20">
@@ -1211,7 +1241,13 @@ export default function ProposalsPage() {
                     <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                       <Info
                         label="Valor total"
-                        value={proposal.isPartnership ? "Gratuito · Parceria" : money(proposal.totalValue)}
+                        value={
+                          proposal.isPartnership
+                            ? proposal.totalValue > 0
+                              ? `Gratuito · Parceria + ${money(proposal.totalValue)}`
+                              : "Gratuito · Parceria"
+                            : money(proposal.totalValue)
+                        }
                       />
                       <Info label="Prazo" value={proposal.estimatedDeadline || "A definir"} />
                       <Info label="Validade" value={formatDate(proposal.validUntil)} />

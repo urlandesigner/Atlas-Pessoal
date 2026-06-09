@@ -260,6 +260,11 @@ function normalizeProposal(entry: Partial<ProposalEntry>): ProposalEntry {
   const createdAt = entry.created_at ?? new Date().toISOString()
   const proposalDate = entry.proposalDate || new Date().toISOString().split("T")[0]
   const isPartnership = Boolean(entry.isPartnership)
+  const included = normalizeStringList(entry.included)
+  // Domínio e hospedagem são cobranças separadas: continuam valendo mesmo em parceria.
+  const addonTotal =
+    (included.some((i) => /(domínio|dominio)/i.test(i)) ? DOMAIN_ADDON_PRICE : 0) +
+    (included.some((i) => /hospedagem/i.test(i)) ? HOSTING_ADDON_PRICE : 0)
 
   return {
     id: entry.id ?? createId("proposal"),
@@ -273,12 +278,13 @@ function normalizeProposal(entry: Partial<ProposalEntry>): ProposalEntry {
     objective: entry.objective?.trim() || "",
     scope: normalizeScope(entry.scope),
     estimatedDeadline: entry.estimatedDeadline?.trim() || "",
-    totalValue: isPartnership ? 0 : normalizeNumber(entry.totalValue),
+    // Em parceria o desenvolvimento é gratuito; resta apenas o custo dos add-ons.
+    totalValue: isPartnership ? addonTotal : normalizeNumber(entry.totalValue),
     entryMode: entry.entryMode === "value" ? "value" : "percent",
     entryValue: isPartnership ? 0 : normalizeNumber(entry.entryValue),
     paymentMethod: isPartnership ? "" : entry.paymentMethod?.trim() || "",
     isPartnership,
-    included: normalizeStringList(entry.included),
+    included,
     notIncluded: normalizeStringList(entry.notIncluded),
     notes: entry.notes?.trim() || null,
     status: normalizeStatus(entry.status),
