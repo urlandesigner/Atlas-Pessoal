@@ -766,16 +766,21 @@ function normalizeLead(entry: Partial<LeadEntry>): LeadEntry {
   return normalized
 }
 
-// Merges DEFAULT_LEADS seeds into existing localStorage, skipping duplicates by id.
-function applySeedLeads(existing: LeadEntry[]): LeadEntry[] {
+export function initLeadSeeds() {
+  if (typeof window === "undefined") return
+  const raw = localStorage.getItem(CRM_STORAGE_KEY)
+  const existing = raw
+    ? (JSON.parse(raw) as Partial<LeadEntry>[]).map(normalizeLead)
+    : []
   const existingIds = new Set(existing.map((l) => l.id))
   const toAdd = DEFAULT_LEADS.filter((l) => !existingIds.has(l.id))
-  if (toAdd.length === 0) return existing
-  const merged = [...existing, ...toAdd]
-  const raw = JSON.stringify(merged)
-  localStorage.setItem(CRM_STORAGE_KEY, raw)
-  cachedLeadsRaw = raw
-  return merged
+  if (toAdd.length === 0) return
+  const merged = [...existing, ...toAdd.map(normalizeLead)]
+  const newRaw = JSON.stringify(merged)
+  localStorage.setItem(CRM_STORAGE_KEY, newRaw)
+  cachedLeadsRaw = newRaw
+  cachedLeadsSnapshot = merged
+  window.dispatchEvent(new Event(CRM_STORAGE_EVENT))
 }
 
 export function getLeadsSnapshot(): LeadEntry[] {
@@ -783,11 +788,10 @@ export function getLeadsSnapshot(): LeadEntry[] {
   try {
     const raw = localStorage.getItem(CRM_STORAGE_KEY)
     if (raw === cachedLeadsRaw) return cachedLeadsSnapshot
-    const existing = raw
+    const snapshot = raw
       ? (JSON.parse(raw) as Partial<LeadEntry>[]).map(normalizeLead)
       : DEFAULT_LEADS
-    const snapshot = raw ? applySeedLeads(existing) : existing
-    cachedLeadsRaw = raw ?? cachedLeadsRaw
+    cachedLeadsRaw = raw
     cachedLeadsSnapshot = snapshot
     return snapshot
   } catch {
