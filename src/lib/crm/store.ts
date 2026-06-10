@@ -638,6 +638,22 @@ const DEFAULT_LEADS: LeadEntry[] = [
 let cachedLeadsRaw: string | null | undefined
 let cachedLeadsSnapshot: LeadEntry[] = DEFAULT_LEADS
 
+// Inject any missing seed leads into localStorage synchronously on module load.
+if (typeof window !== "undefined") {
+  try {
+    const _raw = localStorage.getItem(CRM_STORAGE_KEY)
+    const _existing = _raw ? (JSON.parse(_raw) as Partial<LeadEntry>[]) : []
+    const _ids = new Set(_existing.map((l) => (l as LeadEntry).id))
+    const _toAdd = DEFAULT_LEADS.filter((l) => !_ids.has(l.id))
+    if (_toAdd.length > 0) {
+      const _merged = [..._existing, ..._toAdd]
+      const _newRaw = JSON.stringify(_merged)
+      localStorage.setItem(CRM_STORAGE_KEY, _newRaw)
+      cachedLeadsRaw = _newRaw
+    }
+  } catch {}
+}
+
 function createId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID()
   return `lead-${Date.now()}-${Math.random().toString(16).slice(2)}`
