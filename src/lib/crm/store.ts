@@ -502,7 +502,73 @@ export const EMPTY_LEAD_FORM: LeadForm = {
 export const CRM_STORAGE_KEY = "atlas_crm_leads"
 export const CRM_STORAGE_EVENT = "atlas-crm-change"
 
-const DEFAULT_LEADS: LeadEntry[] = []
+const DEFAULT_LEADS: LeadEntry[] = [
+  {
+    id: "lead-renan-modani-001",
+    status_stage: "lead",
+    status: "new",
+    completion_percentage: 0,
+    lost: false,
+    lost_reason: "",
+    lost_at: null,
+    created_at: "2026-06-10T00:00:00.000Z",
+    updated_at: "2026-06-10T00:00:00.000Z",
+    prospect: {
+      company: "Renan Modani",
+      first_contact_date: "2026-06-10T00:00:00.000Z",
+    },
+    qualification: {
+      contact_name: "Renan Modani",
+    },
+    opportunity: {
+      estimated_value: null,
+      quote_value: null,
+      closed_value: null,
+      closing_probability: 0,
+    },
+    communication: {},
+    stages: [
+      {
+        stage: "lead",
+        entered_at: "2026-06-10T00:00:00.000Z",
+        exited_at: null,
+      },
+    ],
+    stage_completion: {} as Record<PipelineStage, StageCompletion>,
+    activities: [],
+    comments: [],
+    timeline: [
+      {
+        id: "tl-renan-modani-001",
+        type: "created",
+        description: "Lead criado para Renan Modani.",
+        created_at: "2026-06-10T00:00:00.000Z",
+      },
+    ],
+    briefing: { ...EMPTY_BRIEFING },
+    proposal_ids: [],
+    project_ids: [],
+    client_id: null,
+    name: "Renan Modani",
+    email: "",
+    phone: "",
+    whatsapp: "",
+    company: "Renan Modani",
+    segment: "",
+    city: "",
+    state: "",
+    current_site: "",
+    instagram: "",
+    project_type: "",
+    project_objective: "",
+    desired_deadline: "",
+    investment_range: "",
+    origin: "",
+    estimated_value: null,
+    responsible: "",
+    proposal_id: null,
+  },
+]
 
 let cachedLeadsRaw: string | null | undefined
 let cachedLeadsSnapshot: LeadEntry[] = DEFAULT_LEADS
