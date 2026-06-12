@@ -1,6 +1,7 @@
 export const ATLAS_STORAGE_PREFIX = "atlas_"
 export const ATLAS_STORAGE_SYNC_ENDPOINT = "/api/local-data"
 export const ATLAS_STORAGE_SYNC_INTERVAL_MS = 15000
+export const ATLAS_STORAGE_UPDATED_AT_KEY = "atlas_storage_updated_at"
 
 export type AtlasStoragePayload = {
   updatedAt: string

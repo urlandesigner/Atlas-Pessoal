@@ -1,5 +1,6 @@
 "use client"
 
+import { syncProjectsToSupabase } from "@/lib/supabase/data"
 import type { ProjectStatus } from "@/types"
 
 export type WorkspaceTab = "professional" | "personal" | "freelancer"
@@ -119,7 +120,6 @@ export const STORAGE_KEY = "atlas_projects"
 export const PROJECTS_STORAGE_EVENT = "atlas-projects-change"
 const DEFAULT_PROJECT_DATE = "2026-01-01T00:00:00.000Z"
 
-let cachedProjectsRaw: string | null | undefined
 let cachedProjectsSnapshot: Record<WorkspaceTab, ProjectEntry[]> | null = null
 
 export function createTimelineEvent(
@@ -254,34 +254,21 @@ function buildDefaultProjects(): Record<WorkspaceTab, ProjectEntry[]> {
 
 export const DEFAULT_PROJECTS = buildDefaultProjects()
 
+export function hydrateProjects(data: Record<WorkspaceTab, ProjectEntry[]>) {
+  cachedProjectsSnapshot = data
+}
+
 export function getProjectsServerSnapshot(): Record<WorkspaceTab, ProjectEntry[]> {
   return DEFAULT_PROJECTS
 }
 
 export function getProjectsSnapshot(): Record<WorkspaceTab, ProjectEntry[]> {
-  if (typeof window === "undefined") return DEFAULT_PROJECTS
-
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw === cachedProjectsRaw && cachedProjectsSnapshot) return cachedProjectsSnapshot
-
-    const snapshot = raw ? mergeWithSeed(JSON.parse(raw)) : DEFAULT_PROJECTS
-    cachedProjectsRaw = raw
-    cachedProjectsSnapshot = snapshot
-    return snapshot
-  } catch {
-    cachedProjectsRaw = null
-    cachedProjectsSnapshot = DEFAULT_PROJECTS
-    return DEFAULT_PROJECTS
-  }
+  return cachedProjectsSnapshot ?? DEFAULT_PROJECTS
 }
 
 export function saveProjects(data: Record<WorkspaceTab, ProjectEntry[]>) {
-  if (typeof window === "undefined") return
-  const raw = JSON.stringify(data)
-  localStorage.setItem(STORAGE_KEY, raw)
-  cachedProjectsRaw = raw
   cachedProjectsSnapshot = data
+  void syncProjectsToSupabase(data).catch((err) => console.error("[projects] sync:", err))
 }
 
 export function emitProjectsChange() {
@@ -291,21 +278,9 @@ export function emitProjectsChange() {
 
 export function subscribeProjectsStore(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {}
-
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key && event.key !== STORAGE_KEY) return
-    onStoreChange()
-  }
-
-  const handleProjectsChange = () => onStoreChange()
-
-  window.addEventListener("storage", handleStorage)
-  window.addEventListener(PROJECTS_STORAGE_EVENT, handleProjectsChange)
-
-  return () => {
-    window.removeEventListener("storage", handleStorage)
-    window.removeEventListener(PROJECTS_STORAGE_EVENT, handleProjectsChange)
-  }
+  const handler = () => onStoreChange()
+  window.addEventListener(PROJECTS_STORAGE_EVENT, handler)
+  return () => window.removeEventListener(PROJECTS_STORAGE_EVENT, handler)
 }
 
 export function createProjectPath(workspace: WorkspaceTab, projectId: string) {

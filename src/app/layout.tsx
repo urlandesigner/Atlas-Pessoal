@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { AtlasStorageProvider } from "@/components/persistence/atlas-storage-provider"
-import { readAtlasStoragePayload } from "@/lib/persistence/atlas-storage-server"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
 
@@ -20,21 +19,20 @@ export const metadata: Metadata = {
   description: "Seu sistema pessoal de registro profissional e impacto.",
 }
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const atlasStoragePayload = await readAtlasStoragePayload()
-
   return (
     <html
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full">
+      <body className="min-h-full" suppressHydrationWarning>
         <TooltipProvider>
-          <AtlasStorageProvider initialData={atlasStoragePayload.data}>
+          <AtlasStorageProvider>
             {children}
           </AtlasStorageProvider>
         </TooltipProvider>

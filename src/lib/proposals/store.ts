@@ -1,5 +1,7 @@
 "use client"
 
+import { syncProposalsToSupabase } from "@/lib/supabase/data"
+
 export type ProposalStatus =
   | "draft"
   | "sent"
@@ -267,7 +269,6 @@ export const PROPOSAL_TEMPLATES: ProposalTemplate[] = [
 
 export const DEFAULT_PROPOSALS: ProposalEntry[] = []
 
-let cachedProposalsRaw: string | null | undefined
 let cachedProposalsSnapshot: ProposalEntry[] = DEFAULT_PROPOSALS
 
 function createId(prefix: string) {
@@ -342,27 +343,12 @@ export function normalizeProposalEntry(entry: Partial<ProposalEntry>): ProposalE
   }
 }
 
+export function hydrateProposals(data: Partial<ProposalEntry>[]) {
+  cachedProposalsSnapshot = data.map(normalizeProposalEntry)
+}
+
 export function getProposalsSnapshot() {
-  if (typeof window === "undefined") return DEFAULT_PROPOSALS
-
-  try {
-    const raw = localStorage.getItem(PROPOSALS_STORAGE_KEY)
-    if (raw === cachedProposalsRaw) return cachedProposalsSnapshot
-
-    const parsed = raw ? (JSON.parse(raw) as Partial<ProposalEntry>[]) : DEFAULT_PROPOSALS
-    const snapshot = Array.isArray(parsed) ? parsed.map(normalizeProposalEntry) : DEFAULT_PROPOSALS
-    const normalizedRaw = JSON.stringify(snapshot)
-    if (raw !== normalizedRaw) {
-      localStorage.setItem(PROPOSALS_STORAGE_KEY, normalizedRaw)
-    }
-    cachedProposalsRaw = normalizedRaw
-    cachedProposalsSnapshot = snapshot
-    return snapshot
-  } catch {
-    cachedProposalsRaw = null
-    cachedProposalsSnapshot = DEFAULT_PROPOSALS
-    return cachedProposalsSnapshot
-  }
+  return cachedProposalsSnapshot
 }
 
 export function getProposalsServerSnapshot() {
@@ -370,12 +356,9 @@ export function getProposalsServerSnapshot() {
 }
 
 export function saveProposals(data: ProposalEntry[]) {
-  if (typeof window === "undefined") return
   const snapshot = data.map(normalizeProposalEntry)
-  const raw = JSON.stringify(snapshot)
-  localStorage.setItem(PROPOSALS_STORAGE_KEY, raw)
-  cachedProposalsRaw = raw
   cachedProposalsSnapshot = snapshot
+  void syncProposalsToSupabase(snapshot).catch((err) => console.error("[proposals] sync:", err))
 }
 
 export function emitProposalsChange() {
@@ -385,21 +368,9 @@ export function emitProposalsChange() {
 
 export function subscribeProposalsStore(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {}
-
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key && event.key !== PROPOSALS_STORAGE_KEY) return
-    onStoreChange()
-  }
-
-  const handleProposalsChange = () => onStoreChange()
-
-  window.addEventListener("storage", handleStorage)
-  window.addEventListener(PROPOSALS_STORAGE_EVENT, handleProposalsChange)
-
-  return () => {
-    window.removeEventListener("storage", handleStorage)
-    window.removeEventListener(PROPOSALS_STORAGE_EVENT, handleProposalsChange)
-  }
+  const handler = () => onStoreChange()
+  window.addEventListener(PROPOSALS_STORAGE_EVENT, handler)
+  return () => window.removeEventListener(PROPOSALS_STORAGE_EVENT, handler)
 }
 
 export function createScopeCategory(name = "Nova categoria"): ProposalScopeCategory {

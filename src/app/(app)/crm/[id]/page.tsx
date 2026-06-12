@@ -81,7 +81,15 @@ const selectClass =
 
 // ─── Overview tab ────────────────────────────────────────────────────────────
 
-function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: LeadEntry) => void }) {
+function OverviewTab({
+  lead,
+  onUpdate,
+  onSaveComplete,
+}: {
+  lead: LeadEntry
+  onUpdate: (updated: LeadEntry) => void
+  onSaveComplete: () => void
+}) {
   const [prospect, setProspect] = useState(lead.prospect)
   const [qual, setQual] = useState(lead.qualification)
   const [opp, setOpp] = useState(lead.opportunity)
@@ -99,6 +107,7 @@ function OverviewTab({ lead, onUpdate }: { lead: LeadEntry; onUpdate: (updated: 
         communication: comm,
       })
     )
+    onSaveComplete()
     setTimeout(() => setSaving(false), 600)
   }
 
@@ -293,6 +302,10 @@ export default function LeadDetailPage() {
     const next = getLeadsSnapshot().filter((l) => l.id !== id)
     saveLeads(next)
     emitLeadsChange()
+    router.push("/crm")
+  }
+
+  function handleSaveComplete() {
     router.push("/crm")
   }
 
@@ -557,7 +570,12 @@ export default function LeadDetailPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-5xl px-6 pt-6">
-          <OverviewTab key={lead.id} lead={lead} onUpdate={handleUpdate} />
+          <OverviewTab
+            key={lead.id}
+            lead={lead}
+            onUpdate={handleUpdate}
+            onSaveComplete={handleSaveComplete}
+          />
         </div>
       </div>
     </div>

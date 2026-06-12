@@ -3,6 +3,13 @@ import { NextResponse, type NextRequest } from "next/server"
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
+  const authDisabled =
+    process.env.DISABLE_AUTH === "true" ||
+    process.env.NEXT_PUBLIC_DISABLE_AUTH === "true"
+
+  if (authDisabled) {
+    return supabaseResponse
+  }
 
   // TODO: remover quando Supabase estiver configurado
   // Verifica se está com placeholder ou não configurado

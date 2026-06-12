@@ -1,5 +1,7 @@
 "use client"
 
+import { syncLeadsToSupabase } from "@/lib/supabase/data"
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 // Pipeline Stages (Nova estrutura)
@@ -504,7 +506,6 @@ export const CRM_STORAGE_EVENT = "atlas-crm-change"
 
 const DEFAULT_LEADS: LeadEntry[] = []
 
-let cachedLeadsRaw: string | null | undefined
 let cachedLeadsSnapshot: LeadEntry[] = DEFAULT_LEADS
 
 function createId() {
@@ -539,7 +540,7 @@ function buildStageCompletion(lead: LeadEntry): Record<PipelineStage, StageCompl
   return result
 }
 
-function normalizeLead(entry: Partial<LeadEntry>): LeadEntry {
+export function normalizeLead(entry: Partial<LeadEntry>): LeadEntry {
   const now = entry.created_at ?? new Date().toISOString()
   const stage = entry.status_stage ?? "lead"
 
@@ -635,22 +636,12 @@ function normalizeLead(entry: Partial<LeadEntry>): LeadEntry {
   return normalized
 }
 
+export function hydrateLeads(data: Partial<LeadEntry>[]) {
+  cachedLeadsSnapshot = data.map(normalizeLead)
+}
+
 export function getLeadsSnapshot(): LeadEntry[] {
-  if (typeof window === "undefined") return DEFAULT_LEADS
-  try {
-    const raw = localStorage.getItem(CRM_STORAGE_KEY)
-    if (raw === cachedLeadsRaw) return cachedLeadsSnapshot
-    const snapshot = raw
-      ? (JSON.parse(raw) as Partial<LeadEntry>[]).map(normalizeLead)
-      : DEFAULT_LEADS
-    cachedLeadsRaw = raw
-    cachedLeadsSnapshot = snapshot
-    return snapshot
-  } catch {
-    cachedLeadsRaw = null
-    cachedLeadsSnapshot = DEFAULT_LEADS
-    return DEFAULT_LEADS
-  }
+  return cachedLeadsSnapshot
 }
 
 export function getLeadsServerSnapshot(): LeadEntry[] {
@@ -658,11 +649,8 @@ export function getLeadsServerSnapshot(): LeadEntry[] {
 }
 
 export function saveLeads(data: LeadEntry[]) {
-  if (typeof window === "undefined") return
-  const raw = JSON.stringify(data)
-  localStorage.setItem(CRM_STORAGE_KEY, raw)
-  cachedLeadsRaw = raw
   cachedLeadsSnapshot = data
+  void syncLeadsToSupabase(data).catch((err) => console.error("[leads] sync:", err))
 }
 
 export function emitLeadsChange() {
@@ -672,20 +660,9 @@ export function emitLeadsChange() {
 
 export function subscribeLeadsStore(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {}
-
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key && event.key !== CRM_STORAGE_KEY) return
-    onStoreChange()
-  }
-  const handleCrmChange = () => onStoreChange()
-
-  window.addEventListener("storage", handleStorage)
-  window.addEventListener(CRM_STORAGE_EVENT, handleCrmChange)
-
-  return () => {
-    window.removeEventListener("storage", handleStorage)
-    window.removeEventListener(CRM_STORAGE_EVENT, handleCrmChange)
-  }
+  const handler = () => onStoreChange()
+  window.addEventListener(CRM_STORAGE_EVENT, handler)
+  return () => window.removeEventListener(CRM_STORAGE_EVENT, handler)
 }
 
 // ─── CRUD helpers ─────────────────────────────────────────────────────────

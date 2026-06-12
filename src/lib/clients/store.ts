@@ -1,5 +1,6 @@
 "use client"
 
+import { syncClientsToSupabase } from "@/lib/supabase/data"
 import type { ProposalEntry } from "@/lib/proposals/store"
 import type { ProjectEntry } from "@/lib/projects/store"
 import { PROJECT_TYPE_LABEL, type LeadEntry, type ProjectType } from "@/lib/crm/store"
@@ -229,7 +230,6 @@ export const DEFAULT_DELIVERY: ClientDeliveryInfo = {
 
 export const DEFAULT_CLIENTS: ClientEntry[] = []
 
-let cachedClientsRaw: string | null | undefined
 let cachedClientsSnapshot: ClientEntry[] = DEFAULT_CLIENTS
 
 function createId(prefix: string) {
@@ -286,7 +286,7 @@ function normalizeTimeline(value: unknown, fallback: ClientTimelineEntry[]): Cli
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
 }
 
-function normalizeClient(client: Partial<ClientEntry>): ClientEntry {
+export function normalizeClient(client: Partial<ClientEntry>): ClientEntry {
   const createdAt = client.created_at ?? new Date().toISOString()
   const name = client.name?.trim() || "Cliente sem nome"
   const deliveryDate = normalizeDate(client.warrantyDeliveryDate || client.projectDeliveryDate)
@@ -381,22 +381,12 @@ function buildSeedFromFreelancerProjects(): ClientEntry[] {
   }
 }
 
+export function hydrateClients(data: Partial<ClientEntry>[]) {
+  cachedClientsSnapshot = data.map(normalizeClient)
+}
+
 export function getClientsSnapshot() {
-  if (typeof window === "undefined") return DEFAULT_CLIENTS
-  try {
-    const raw = localStorage.getItem(CLIENTS_STORAGE_KEY)
-    if (raw === cachedClientsRaw) return cachedClientsSnapshot
-    const snapshot = raw
-      ? (JSON.parse(raw) as Partial<ClientEntry>[]).map(normalizeClient)
-      : buildSeedFromFreelancerProjects()
-    cachedClientsRaw = raw
-    cachedClientsSnapshot = snapshot
-    return snapshot
-  } catch {
-    cachedClientsRaw = null
-    cachedClientsSnapshot = buildSeedFromFreelancerProjects()
-    return cachedClientsSnapshot
-  }
+  return cachedClientsSnapshot
 }
 
 export function getClientsServerSnapshot() {
@@ -404,12 +394,9 @@ export function getClientsServerSnapshot() {
 }
 
 export function saveClients(data: ClientEntry[]) {
-  if (typeof window === "undefined") return
   const normalized = data.map(normalizeClient)
-  const raw = JSON.stringify(normalized)
-  localStorage.setItem(CLIENTS_STORAGE_KEY, raw)
-  cachedClientsRaw = raw
   cachedClientsSnapshot = normalized
+  void syncClientsToSupabase(normalized).catch((err) => console.error("[clients] sync:", err))
 }
 
 export function emitClientsChange() {
@@ -419,17 +406,9 @@ export function emitClientsChange() {
 
 export function subscribeClientsStore(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {}
-  const handleStorage = (event: StorageEvent) => {
-    if (event.key && event.key !== CLIENTS_STORAGE_KEY) return
-    onStoreChange()
-  }
-  const handleClientsChange = () => onStoreChange()
-  window.addEventListener("storage", handleStorage)
-  window.addEventListener(CLIENTS_STORAGE_EVENT, handleClientsChange)
-  return () => {
-    window.removeEventListener("storage", handleStorage)
-    window.removeEventListener(CLIENTS_STORAGE_EVENT, handleClientsChange)
-  }
+  const handler = () => onStoreChange()
+  window.addEventListener(CLIENTS_STORAGE_EVENT, handler)
+  return () => window.removeEventListener(CLIENTS_STORAGE_EVENT, handler)
 }
 
 export function createClientFromForm(form: ClientForm): ClientEntry {

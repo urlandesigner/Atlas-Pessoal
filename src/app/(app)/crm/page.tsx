@@ -81,8 +81,31 @@ function formatRelative(isoString: string) {
   return new Date(isoString).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })
 }
 
+function formatStableDate(isoString: string) {
+  const datePart = isoString.slice(0, 10)
+  if (!datePart) return "—"
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(`${datePart}T00:00:00Z`))
+}
+
 function leadTitle(lead: LeadEntry) {
   return lead.prospect.company || lead.qualification.contact_name?.trim() || "Lead sem empresa"
+}
+
+function subscribeHydration() {
+  return () => {}
+}
+
+function getClientHydrationSnapshot() {
+  return true
+}
+
+function getServerHydrationSnapshot() {
+  return false
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
@@ -122,6 +145,16 @@ function LeadAvatar({ label, size = "md" }: { label: string; size?: "sm" | "md" 
       {initial || <UserRound className="size-3.5" />}
     </div>
   )
+}
+
+function LeadCreatedAt({ isoString }: { isoString: string }) {
+  const hydrated = useSyncExternalStore(
+    subscribeHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot
+  )
+
+  return <>{hydrated ? formatRelative(isoString) : formatStableDate(isoString)}</>
 }
 
 // ─── Lead form (Sheet) — quick capture ──────────────────────────────────────
@@ -314,7 +347,7 @@ function LeadTableRow({
 
       {/* Date */}
       <TableCell className="hidden text-right text-xs text-muted-foreground md:table-cell">
-        {formatRelative(lead.created_at)}
+        <LeadCreatedAt isoString={lead.created_at} />
       </TableCell>
 
       {/* Actions */}
@@ -365,6 +398,7 @@ function LeadTableRow({
 type StageFilter = PipelineStage | "all" | "lost"
 
 export default function CrmPage() {
+  const router = useRouter()
   const leads = useSyncExternalStore(subscribeLeadsStore, getLeadsSnapshot, getLeadsServerSnapshot)
 
   const [search, setSearch] = useState("")
@@ -402,13 +436,15 @@ export default function CrmPage() {
     const q = normalizeSearch(search)
     return leads
       .filter((l) => {
-        // "Perdidos" shows only lost; every other view hides lost leads.
         if (stageFilter === "lost") {
           if (!l.lost) return false
-        } else {
-          if (l.lost) return false
-          if (stageFilter !== "all" && l.status_stage !== stageFilter) return false
         }
+
+        if (stageFilter !== "all") {
+          if (l.lost) return false
+          if (l.status_stage !== stageFilter) return false
+        }
+
         if (!q) return true
         return (
           normalizeSearch(l.prospect.company).includes(q) ||
@@ -416,14 +452,21 @@ export default function CrmPage() {
           normalizeSearch(l.prospect.segment ?? "").includes(q)
         )
       })
-      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .sort((a, b) =>
+        leadTitle(a).localeCompare(leadTitle(b), "pt-BR", {
+          sensitivity: "base",
+        })
+      )
   }, [leads, search, stageFilter])
 
   function handleSave(form: QuickLeadForm) {
     const current = getLeadsSnapshot()
     saveLeads([createLeadFromQuickForm(form), ...current])
     emitLeadsChange()
+    setSearch("")
+    setStageFilter("all")
     setSheetOpen(false)
+    router.push("/crm")
   }
 
   function handleDelete(id: string) {
@@ -450,7 +493,11 @@ export default function CrmPage() {
           <div className="flex flex-wrap gap-3">
             <StatCard label="Leads ativos" value={stats.total} />
             <StatCard label="Este mês" value={stats.thisMonth} />
-            <StatCard label="Clientes" value={stats.clients} />
+            <StatCard
+              label="Convertidos"
+              value={stats.clients}
+              sub="leads que viraram clientes"
+            />
             <StatCard label="Perdidos" value={stats.lost} />
             <StatCard
               label="Conversão"
