@@ -6,3 +6,6 @@ ALTER TABLE proposals
 
 ALTER TABLE proposals
   ADD COLUMN IF NOT EXISTS hosting_first_year_free BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Atualiza o cache de schema da API (PostgREST) após novas colunas
+NOTIFY pgrst, 'reload schema';

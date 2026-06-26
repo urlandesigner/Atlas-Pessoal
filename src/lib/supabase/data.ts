@@ -284,11 +284,6 @@ export async function syncProposalsToSupabase(data: ProposalEntry[]) {
   const ids = data.map((p) => p.id)
   const fullRows = data.map(proposalToRow)
 
-  if (proposalAddonColumnsSupported === false) {
-    await syncTable("proposals", ids, stripRowColumns(fullRows, PROPOSAL_ADDON_COLUMN_KEYS))
-    return
-  }
-
   const upsertError = await syncTable("proposals", ids, fullRows, { quiet: true })
 
   if (!upsertError) {
@@ -345,7 +340,14 @@ export async function fetchAllFromSupabase() {
   ])
 
   const leadsData = (leadsResult.data ?? []) as Partial<LeadEntry>[]
-  const proposalsData = (proposalsResult.data ?? []).map((r) => rowToProposal(r as Record<string, unknown>))
+  const proposalsRaw = proposalsResult.data ?? []
+  if (proposalsRaw.length > 0) {
+    const sample = proposalsRaw[0] as Record<string, unknown>
+    if ("domain_first_year_free" in sample || "hosting_first_year_free" in sample) {
+      proposalAddonColumnsSupported = true
+    }
+  }
+  const proposalsData = proposalsRaw.map((r) => rowToProposal(r as Record<string, unknown>))
   const clientsData = (clientsResult.data ?? []).map((r) => rowToClient(r as Record<string, unknown>))
 
   const projectsData: Record<WorkspaceTab, ProjectEntry[]> = {
