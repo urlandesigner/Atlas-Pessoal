@@ -170,12 +170,14 @@ export function AddonToggle({
   label,
   detail,
   price,
+  firstYearFree = false,
   checked,
   onToggle,
 }: {
   label: string
   detail: string
   price?: number
+  firstYearFree?: boolean
   checked: boolean
   onToggle: (checked: boolean) => void
 }) {
@@ -202,9 +204,38 @@ export function AddonToggle({
       </div>
       {typeof price === "number" ? (
         <span className={cn("shrink-0 text-sm font-medium tabular-nums", checked ? "text-foreground" : "text-muted-foreground")}>
-          + {money(price)}/ano
+          {firstYearFree ? "1º ano gratuito" : `+ ${money(price)}/ano`}
         </span>
       ) : null}
+    </button>
+  )
+}
+
+export function FirstYearFreeOption({
+  checked,
+  onToggle,
+}: {
+  checked: boolean
+  onToggle: (checked: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(!checked)}
+      className={cn(
+        "ml-7 flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors",
+        checked ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+      )}
+    >
+      <div
+        className={cn(
+          "flex size-4 shrink-0 items-center justify-center rounded border transition-colors",
+          checked ? "border-foreground bg-foreground text-background" : "border-input"
+        )}
+      >
+        {checked && <Check className="size-2.5" />}
+      </div>
+      Oferecer 1º ano gratuito
     </button>
   )
 }

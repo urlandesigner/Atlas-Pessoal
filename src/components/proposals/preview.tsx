@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import {
   DOMAIN_ADDON_PRICE,
+  getProposalAddonOptions,
   getProposalAddonTotal,
   getProposalDevelopmentTotal,
   getProposalDisplayTotal,
@@ -13,7 +14,9 @@ import {
 import { cn } from "@/lib/utils"
 
 import { STATUS_CLASS } from "./constants"
-import { formatDate, money, parseNumber } from "./utils"
+import { ProposalAddonExplanation } from "./addon-explanation"
+import { formatAddonPrice, formatDate, money, parseNumber } from "./utils"
+import { hasProposalAddons } from "./addon-copy"
 
 function PreviewSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -42,13 +45,20 @@ function Checklist({ items, empty }: { items: string[]; empty: string }) {
 
 export function ProposalPreview({ form }: { form: ProposalForm }) {
   const rawTotal = parseNumber(form.totalValue)
-  const isPartnership = resolveProposalPartnership(Boolean(form.isPartnership), rawTotal, form.included)
-  const paymentLabel = getProposalPaymentMethod(Boolean(form.isPartnership), form.paymentMethod, rawTotal, form.included)
-  const previewIncludeDomain = form.included.some((i) => /(domínio|dominio)/i.test(i))
-  const previewIncludeHosting = form.included.some((i) => /hospedagem/i.test(i))
-  const addonTotal = getProposalAddonTotal(form.included)
-  const total = getProposalDisplayTotal(isPartnership, rawTotal, form.included)
-  const baseTotal = getProposalDevelopmentTotal(isPartnership, rawTotal, form.included)
+  const addonOptions = getProposalAddonOptions(form)
+  const isPartnership = resolveProposalPartnership(Boolean(form.isPartnership), rawTotal, form.included, addonOptions)
+  const paymentLabel = getProposalPaymentMethod(
+    Boolean(form.isPartnership),
+    form.paymentMethod,
+    rawTotal,
+    form.included,
+    addonOptions
+  )
+  const includeDomain = form.included.some((i) => /(domínio|dominio)/i.test(i))
+  const includeHosting = form.included.some((i) => /hospedagem/i.test(i))
+  const addonTotal = getProposalAddonTotal(form.included, addonOptions)
+  const total = getProposalDisplayTotal(isPartnership, rawTotal, form.included, addonOptions)
+  const baseTotal = getProposalDevelopmentTotal(isPartnership, rawTotal, form.included, addonOptions)
 
   return (
     <div className="rounded-xl border bg-background p-5 shadow-sm">
@@ -114,23 +124,23 @@ export function ProposalPreview({ form }: { form: ProposalForm }) {
 
       <PreviewSection title="Investimento">
         {isPartnership ? (
-          addonTotal > 0 ? (
+          includeDomain || includeHosting ? (
             <div className="rounded-xl bg-foreground p-5 text-background">
               <div className="mb-4 space-y-2 border-b border-background/15 pb-4 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span className="opacity-70">Desenvolvimento</span>
                   <span className="font-medium">Gratuito · Parceria</span>
                 </div>
-                {previewIncludeDomain && (
+                {includeDomain && (
                   <div className="flex justify-between opacity-70">
                     <span>Domínio (anual)</span>
-                    <span>{money(DOMAIN_ADDON_PRICE)}</span>
+                    <span>{formatAddonPrice(DOMAIN_ADDON_PRICE, addonOptions.domainFirstYearFree)}</span>
                   </div>
                 )}
-                {previewIncludeHosting && (
+                {includeHosting && (
                   <div className="flex justify-between opacity-70">
                     <span>Hospedagem (anual)</span>
-                    <span>{money(HOSTING_ADDON_PRICE)}</span>
+                    <span>{formatAddonPrice(HOSTING_ADDON_PRICE, addonOptions.hostingFirstYearFree)}</span>
                   </div>
                 )}
               </div>
@@ -156,26 +166,26 @@ export function ProposalPreview({ form }: { form: ProposalForm }) {
           )
         ) : (
         <div className="rounded-xl bg-foreground p-5 text-background">
-          {addonTotal > 0 && (
+          {includeDomain || includeHosting ? (
             <div className="mb-4 space-y-2 border-b border-background/15 pb-4 text-sm">
               <div className="flex justify-between opacity-70">
                 <span>Desenvolvimento</span>
                 <span>{money(baseTotal)}</span>
               </div>
-              {previewIncludeDomain && (
+              {includeDomain && (
                 <div className="flex justify-between opacity-70">
                   <span>Domínio (anual)</span>
-                  <span>+ {money(DOMAIN_ADDON_PRICE)}</span>
+                  <span>{formatAddonPrice(DOMAIN_ADDON_PRICE, addonOptions.domainFirstYearFree, true)}</span>
                 </div>
               )}
-              {previewIncludeHosting && (
+              {includeHosting && (
                 <div className="flex justify-between opacity-70">
                   <span>Hospedagem (anual)</span>
-                  <span>+ {money(HOSTING_ADDON_PRICE)}</span>
+                  <span>{formatAddonPrice(HOSTING_ADDON_PRICE, addonOptions.hostingFirstYearFree, true)}</span>
                 </div>
               )}
             </div>
-          )}
+          ) : null}
           <p className="text-sm opacity-70">Valor total</p>
           <p className="mt-1 text-3xl font-semibold tracking-tight">{money(total)}</p>
           <div className="mt-5 rounded-lg border border-background/15 bg-background/5 p-4">
@@ -184,6 +194,9 @@ export function ProposalPreview({ form }: { form: ProposalForm }) {
           </div>
         </div>
         )}
+        {hasProposalAddons(form.included) ? (
+          <ProposalAddonExplanation included={form.included} addonOptions={addonOptions} className="mt-4" />
+        ) : null}
       </PreviewSection>
 
       <div className="grid gap-4 sm:grid-cols-2">

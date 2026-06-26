@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -58,13 +58,9 @@ function readLocalCounts() {
 type MigrateStatus = "idle" | "running" | "done" | "error"
 
 export default function MigratePage() {
-  const [counts, setCounts] = useState<ReturnType<typeof readLocalCounts>>(null)
+  const [counts] = useState<ReturnType<typeof readLocalCounts>>(() => readLocalCounts())
   const [status, setStatus] = useState<MigrateStatus>("idle")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-
-  useEffect(() => {
-    setCounts(readLocalCounts())
-  }, [])
 
   async function handleMigrate() {
     setStatus("running")

@@ -9,6 +9,8 @@ import {
   FileText,
   TrendingUp,
   Database,
+  Briefcase,
+  Sparkles,
 } from "lucide-react"
 import {
   Sidebar,
@@ -22,11 +24,20 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar"
 
+const projetosNav = [
+  { label: "Pessoal", href: "/projects/pessoal", icon: FolderOpen },
+  { label: "Clientes", href: "/projects/clientes", icon: Briefcase },
+]
+
 const pessoalNav = [
   { label: "Leads", href: "/crm", icon: TrendingUp },
   { label: "Propostas", href: "/freelancer/proposals", icon: FileText },
   { label: "Clientes", href: "/freelancer/clients", icon: Users },
   { label: "Financeiro", href: "/freelancer/revenue", icon: DollarSign },
+]
+
+const ferramentasNav = [
+  { label: "Site Factory", href: "/site-factory", icon: Sparkles },
 ]
 
 type NavItem = { label: string; href: string; icon: React.ElementType }
@@ -67,20 +78,9 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                render={<Link href="/projects" />}
-                isActive={pathname.startsWith("/projects")}
-              >
-                <FolderOpen />
-                <span>Projetos</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroup>
+        <NavGroup label="Projetos" items={projetosNav} pathname={pathname} />
         <NavGroup label="Pessoal" items={pessoalNav} pathname={pathname} />
+        <NavGroup label="Ferramentas" items={ferramentasNav} pathname={pathname} />
         <SidebarGroup>
           <SidebarMenu>
             <SidebarMenuItem>

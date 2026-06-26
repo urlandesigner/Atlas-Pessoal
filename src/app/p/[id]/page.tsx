@@ -6,16 +6,22 @@ import { Fraunces } from "next/font/google"
 
 import {
   DOMAIN_ADDON_PRICE,
+  getProposalAddonOptions,
   getProposalAddonTotal,
   getProposalDevelopmentTotal,
   getProposalDisplayTotal,
   getProposalPaymentMethod,
   getProposalsServerSnapshot,
+  hasProposalDomain,
+  hasProposalHosting,
   resolveProposalPartnership,
   getProposalsSnapshot,
   HOSTING_ADDON_PRICE,
   subscribeProposalsStore,
 } from "@/lib/proposals/store"
+import { ProposalAddonExplanation } from "@/components/proposals/addon-explanation"
+import { formatAddonPrice } from "@/components/proposals/utils"
+import { hasProposalAddons } from "@/components/proposals/addon-copy"
 
 function subscribeClientHydrated(onStoreChange: () => void) {
   onStoreChange()
@@ -185,21 +191,34 @@ export default function ProposalWebPage() {
     )
   }
 
-  const includeDomain = proposal.included.some((i) => /(domínio|dominio)/i.test(i))
-  const includeHosting = proposal.included.some((i) => /hospedagem/i.test(i))
-  const addonTotal = getProposalAddonTotal(proposal.included)
+  const includeDomain = hasProposalDomain(proposal.included)
+  const includeHosting = hasProposalHosting(proposal.included)
+  const addonOptions = getProposalAddonOptions(proposal)
+  const addonTotal = getProposalAddonTotal(proposal.included, addonOptions)
   const isPartnership = resolveProposalPartnership(
     proposal.isPartnership,
     proposal.totalValue,
-    proposal.included
+    proposal.included,
+    addonOptions
   )
-  const displayTotal = getProposalDisplayTotal(proposal.isPartnership, proposal.totalValue, proposal.included)
-  const baseTotal = getProposalDevelopmentTotal(proposal.isPartnership, proposal.totalValue, proposal.included)
+  const displayTotal = getProposalDisplayTotal(
+    proposal.isPartnership,
+    proposal.totalValue,
+    proposal.included,
+    addonOptions
+  )
+  const baseTotal = getProposalDevelopmentTotal(
+    proposal.isPartnership,
+    proposal.totalValue,
+    proposal.included,
+    addonOptions
+  )
   const paymentLabel = getProposalPaymentMethod(
     proposal.isPartnership,
     proposal.paymentMethod,
     proposal.totalValue,
-    proposal.included
+    proposal.included,
+    addonOptions
   )
   const entryValue =
     proposal.entryMode === "percent"
@@ -305,7 +324,7 @@ export default function ProposalWebPage() {
               <div className="invest-glow" aria-hidden />
               <div className="relative p-8 sm:p-12">
                 {isPartnership ? (
-                  addonTotal > 0 ? (
+                  includeDomain || includeHosting ? (
                     <>
                       <div className="mb-8 flex flex-col gap-3 border-b border-[var(--line)] pb-8 text-[var(--soft)]">
                         <div className="flex items-center justify-between gap-4">
@@ -314,8 +333,18 @@ export default function ProposalWebPage() {
                             Gratuito · Parceria
                           </span>
                         </div>
-                        {includeDomain ? <Line label="Domínio (anual)" value={money(DOMAIN_ADDON_PRICE)} /> : null}
-                        {includeHosting ? <Line label="Hospedagem (anual)" value={money(HOSTING_ADDON_PRICE)} /> : null}
+                        {includeDomain ? (
+                          <Line
+                            label="Domínio (anual)"
+                            value={formatAddonPrice(DOMAIN_ADDON_PRICE, addonOptions.domainFirstYearFree)}
+                          />
+                        ) : null}
+                        {includeHosting ? (
+                          <Line
+                            label="Hospedagem (anual)"
+                            value={formatAddonPrice(HOSTING_ADDON_PRICE, addonOptions.hostingFirstYearFree)}
+                          />
+                        ) : null}
                       </div>
                       <p className="font-mono text-xs uppercase tracking-[0.32em] text-[var(--muted)]">
                         Total anual
@@ -357,11 +386,21 @@ export default function ProposalWebPage() {
                   )
                 ) : (
                   <>
-                    {addonTotal > 0 ? (
+                    {includeDomain || includeHosting ? (
                       <div className="mb-8 flex flex-col gap-3 border-b border-[var(--line)] pb-8 text-[var(--soft)]">
                         <Line label="Desenvolvimento" value={money(baseTotal)} />
-                        {includeDomain ? <Line label="Domínio (anual)" value={`+ ${money(DOMAIN_ADDON_PRICE)}`} /> : null}
-                        {includeHosting ? <Line label="Hospedagem (anual)" value={`+ ${money(HOSTING_ADDON_PRICE)}`} /> : null}
+                        {includeDomain ? (
+                          <Line
+                            label="Domínio (anual)"
+                            value={formatAddonPrice(DOMAIN_ADDON_PRICE, addonOptions.domainFirstYearFree, true)}
+                          />
+                        ) : null}
+                        {includeHosting ? (
+                          <Line
+                            label="Hospedagem (anual)"
+                            value={formatAddonPrice(HOSTING_ADDON_PRICE, addonOptions.hostingFirstYearFree, true)}
+                          />
+                        ) : null}
                       </div>
                     ) : null}
 
@@ -393,6 +432,15 @@ export default function ProposalWebPage() {
                     </div>
                   </>
                 )}
+                {hasProposalAddons(proposal.included) ? (
+                  <div className="mt-10 border-t border-[var(--line)] pt-8">
+                    <ProposalAddonExplanation
+                      included={proposal.included}
+                      addonOptions={addonOptions}
+                      variant="public"
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
           </Reveal>

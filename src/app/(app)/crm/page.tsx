@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/ui/page-header"
 import { Card, CardContent } from "@/components/ui/card"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -404,6 +405,7 @@ export default function CrmPage() {
   const [search, setSearch] = useState("")
   const [stageFilter, setStageFilter] = useState<StageFilter>("all")
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [leadPendingDelete, setLeadPendingDelete] = useState<LeadEntry | null>(null)
 
   // Import leads received via webhook (Google Sheets → API → Supabase)
   useEffect(() => {
@@ -470,9 +472,15 @@ export default function CrmPage() {
   }
 
   function handleDelete(id: string) {
-    if (!confirm("Excluir este lead?")) return
-    saveLeads(getLeadsSnapshot().filter((l) => l.id !== id))
+    const lead = getLeadsSnapshot().find((item) => item.id === id) ?? null
+    setLeadPendingDelete(lead)
+  }
+
+  function confirmDeleteLead() {
+    if (!leadPendingDelete) return
+    saveLeads(getLeadsSnapshot().filter((lead) => lead.id !== leadPendingDelete.id))
     emitLeadsChange()
+    setLeadPendingDelete(null)
   }
 
   return (
@@ -601,6 +609,19 @@ export default function CrmPage() {
       </div>
 
       <LeadSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={handleSave} />
+      <ConfirmDialog
+        open={!!leadPendingDelete}
+        onOpenChange={(open) => !open && setLeadPendingDelete(null)}
+        title="Excluir lead"
+        description={
+          leadPendingDelete
+            ? `O lead "${leadTitle(leadPendingDelete)}" será removido permanentemente.`
+            : undefined
+        }
+        confirmLabel="Excluir lead"
+        confirmVariant="destructive"
+        onConfirm={confirmDeleteLead}
+      />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { FileText, Printer } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -16,10 +16,16 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import {
   applyTemplateToForm,
+  buildDomainIncludedLabel,
+  buildHostingIncludedLabel,
   DOMAIN_ADDON_PRICE,
   EMPTY_PROPOSAL_FORM,
+  getProposalAddonOptions,
   getProposalAddonTotal,
   getProposalDevelopmentTotal,
+  getProposalValidUntil,
+  hasProposalDomain,
+  hasProposalHosting,
   HOSTING_ADDON_PRICE,
   PARTNERSHIP_PAYMENT_METHOD,
   PROPOSAL_STATUS_LABEL,
@@ -31,7 +37,8 @@ import {
   type ProposalStatus,
 } from "@/lib/proposals/store"
 
-import { AddonToggle, EditableList, Field, FormSection, ScopeEditor } from "./editor-parts"
+import { AddonToggle, EditableList, Field, FirstYearFreeOption, FormSection, ScopeEditor } from "./editor-parts"
+import { DOMAIN_ADDON_EXPLANATION, HOSTING_ADDON_EXPLANATION, PROPOSAL_ADDON_INTRO } from "./addon-copy"
 import { printProposal } from "./print"
 import { ProposalPreview } from "./preview"
 import { getRemainingValue, money, parseNumber } from "./utils"
@@ -53,12 +60,21 @@ export function ProposalEditor({
 }) {
   const [form, setForm] = useState<ProposalForm>(initialForm)
 
-  const includeDomain = form.included.some((i) => /(domínio|dominio)/i.test(i))
-  const includeHosting = form.included.some((i) => /hospedagem/i.test(i))
+  useEffect(() => {
+    if (!open) return
+    // Reset the draft whenever a new create/edit context opens.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setForm(initialForm)
+  }, [initialForm, open])
+
+  const includeDomain = hasProposalDomain(form.included)
+  const includeHosting = hasProposalHosting(form.included)
+  const addonOptions = getProposalAddonOptions(form)
   const partnership = resolveProposalPartnership(
     form.isPartnership,
     parseNumber(form.totalValue),
-    form.included
+    form.included,
+    addonOptions
   )
 
   function set<K extends keyof ProposalForm>(field: K, value: ProposalForm[K]) {
@@ -66,15 +82,16 @@ export function ProposalEditor({
   }
 
   function syncInvestmentTotal(prev: ProposalForm, included: string[]): string {
-    const addonTotal = getProposalAddonTotal(included)
+    const options = getProposalAddonOptions({ ...prev, included })
+    const addonTotal = getProposalAddonTotal(included, options)
     if (prev.isPartnership) return String(addonTotal)
-    const development = getProposalDevelopmentTotal(false, parseNumber(prev.totalValue), prev.included)
+    const development = getProposalDevelopmentTotal(false, parseNumber(prev.totalValue), prev.included, options)
     return String(development + addonTotal)
   }
 
   function togglePartnership(checked: boolean) {
     setForm((prev) => {
-      const addonTotal = getProposalAddonTotal(prev.included)
+      const addonTotal = getProposalAddonTotal(prev.included, getProposalAddonOptions(prev))
       if (!checked) {
         return {
           ...prev,
@@ -98,33 +115,59 @@ export function ProposalEditor({
 
   function toggleDomain(checked: boolean) {
     setForm((prev) => {
+      const domainFirstYearFree = checked ? prev.domainFirstYearFree : false
       const included = checked
-        ? [...prev.included.filter((i) => !/(domínio|dominio)/i.test(i)), "Domínio (R$ 40/ano)"]
+        ? [...prev.included.filter((i) => !/(domínio|dominio)/i.test(i)), buildDomainIncludedLabel(domainFirstYearFree)]
         : prev.included.filter((i) => !/(domínio|dominio)/i.test(i))
-      return {
+      const next = {
         ...prev,
-        totalValue: syncInvestmentTotal(prev, included),
+        domainFirstYearFree,
         included,
         notIncluded: checked
           ? prev.notIncluded.filter((i) => !/(domínio|dominio)/i.test(i))
           : [...prev.notIncluded.filter((i) => !/(domínio|dominio)/i.test(i)), "Domínio"],
       }
+      return { ...next, totalValue: syncInvestmentTotal(next, included) }
     })
   }
 
   function toggleHosting(checked: boolean) {
     setForm((prev) => {
+      const hostingFirstYearFree = checked ? prev.hostingFirstYearFree : false
       const included = checked
-        ? [...prev.included.filter((i) => !/hospedagem/i.test(i)), "Hospedagem (R$ 250/ano)"]
+        ? [...prev.included.filter((i) => !/hospedagem/i.test(i)), buildHostingIncludedLabel(hostingFirstYearFree)]
         : prev.included.filter((i) => !/hospedagem/i.test(i))
-      return {
+      const next = {
         ...prev,
-        totalValue: syncInvestmentTotal(prev, included),
+        hostingFirstYearFree,
         included,
         notIncluded: checked
           ? prev.notIncluded.filter((i) => !/hospedagem/i.test(i))
           : [...prev.notIncluded.filter((i) => !/hospedagem/i.test(i)), "Hospedagem"],
       }
+      return { ...next, totalValue: syncInvestmentTotal(next, included) }
+    })
+  }
+
+  function toggleDomainFirstYearFree(checked: boolean) {
+    setForm((prev) => {
+      if (!hasProposalDomain(prev.included)) return prev
+      const included = prev.included.map((item) =>
+        /(domínio|dominio)/i.test(item) ? buildDomainIncludedLabel(checked) : item
+      )
+      const next = { ...prev, domainFirstYearFree: checked, included }
+      return { ...next, totalValue: syncInvestmentTotal(next, included) }
+    })
+  }
+
+  function toggleHostingFirstYearFree(checked: boolean) {
+    setForm((prev) => {
+      if (!hasProposalHosting(prev.included)) return prev
+      const included = prev.included.map((item) =>
+        /hospedagem/i.test(item) ? buildHostingIncludedLabel(checked) : item
+      )
+      const next = { ...prev, hostingFirstYearFree: checked, included }
+      return { ...next, totalValue: syncInvestmentTotal(next, included) }
     })
   }
 
@@ -218,7 +261,18 @@ export function ProposalEditor({
                   </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Data">
-                      <Input type="date" value={form.proposalDate} onChange={(event) => set("proposalDate", event.target.value)} />
+                      <Input
+                        type="date"
+                        value={form.proposalDate}
+                        onChange={(event) => {
+                          const proposalDate = event.target.value
+                          setForm((prev) => ({
+                            ...prev,
+                            proposalDate,
+                            validUntil: getProposalValidUntil(proposalDate),
+                          }))
+                        }}
+                      />
                     </Field>
                     <Field label="Validade">
                       <Input type="date" value={form.validUntil} onChange={(event) => set("validUntil", event.target.value)} />
@@ -302,23 +356,39 @@ export function ProposalEditor({
               </FormSection>
 
               <FormSection title="Domínio e Hospedagem">
-                <p className="text-sm text-muted-foreground">
-                  Cobranças anuais — marque para incluir na proposta e somar ao orçamento.
-                </p>
-                <AddonToggle
-                  label="Domínio"
-                  detail="Registro anual do domínio"
-                  price={DOMAIN_ADDON_PRICE}
-                  checked={includeDomain}
-                  onToggle={toggleDomain}
-                />
-                <AddonToggle
-                  label="Hospedagem"
-                  detail="Plano de hospedagem anual"
-                  price={HOSTING_ADDON_PRICE}
-                  checked={includeHosting}
-                  onToggle={toggleHosting}
-                />
+                <p className="text-sm leading-relaxed text-muted-foreground">{PROPOSAL_ADDON_INTRO}</p>
+                <div className="space-y-2">
+                  <AddonToggle
+                    label="Domínio"
+                    detail={DOMAIN_ADDON_EXPLANATION}
+                    price={DOMAIN_ADDON_PRICE}
+                    firstYearFree={form.domainFirstYearFree}
+                    checked={includeDomain}
+                    onToggle={toggleDomain}
+                  />
+                  {includeDomain ? (
+                    <FirstYearFreeOption
+                      checked={form.domainFirstYearFree}
+                      onToggle={toggleDomainFirstYearFree}
+                    />
+                  ) : null}
+                </div>
+                <div className="space-y-2">
+                  <AddonToggle
+                    label="Hospedagem"
+                    detail={HOSTING_ADDON_EXPLANATION}
+                    price={HOSTING_ADDON_PRICE}
+                    firstYearFree={form.hostingFirstYearFree}
+                    checked={includeHosting}
+                    onToggle={toggleHosting}
+                  />
+                  {includeHosting ? (
+                    <FirstYearFreeOption
+                      checked={form.hostingFirstYearFree}
+                      onToggle={toggleHostingFirstYearFree}
+                    />
+                  ) : null}
+                </div>
               </FormSection>
 
               <FormSection title="Inclusos">

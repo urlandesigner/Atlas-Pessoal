@@ -5,6 +5,8 @@ import type { ProjectStatus } from "@/types"
 
 export type WorkspaceTab = "professional" | "personal" | "freelancer"
 export type ProjectPriority = "low" | "medium" | "high"
+/** Estágio comercial dos projetos de cliente (workspace freelancer). */
+export type DealStage = "prospect" | "client"
 export type TimelineEventType =
   | "created"
   | "edited"
@@ -53,6 +55,8 @@ export interface ProjectEntry {
   updated_at?: string
   timeline?: ProjectTimelineEntry[]
   links: ProjectLinkEntry[]
+  /** Apenas para projetos de cliente (freelancer): prospecção × contratado. */
+  dealStage?: DealStage
 }
 
 export interface ProjectForm {
@@ -64,6 +68,7 @@ export interface ProjectForm {
   clientId: string
   clientName: string
   value: string
+  dealStage: DealStage
 }
 
 export const STATUS_LABEL: Record<ProjectStatus, string> = {
@@ -79,8 +84,15 @@ export const STATUS_OPTIONS: ProjectStatus[] = ["not_started", "active", "paused
 export const TAB_LABEL: Record<WorkspaceTab, string> = {
   professional: "Profissional",
   personal: "Pessoal",
-  freelancer: "Freelancer",
+  freelancer: "Clientes",
 }
+
+export const DEAL_STAGE_LABEL: Record<DealStage, string> = {
+  prospect: "Prospecção",
+  client: "Contratado",
+}
+
+export const DEAL_STAGE_OPTIONS: DealStage[] = ["prospect", "client"]
 
 export const EMPTY_FORM: ProjectForm = {
   name: "",
@@ -91,6 +103,7 @@ export const EMPTY_FORM: ProjectForm = {
   clientId: "",
   clientName: "",
   value: "",
+  dealStage: "client",
 }
 
 const SEED: Record<WorkspaceTab, ProjectEntry[]> = {
@@ -216,6 +229,7 @@ export function normalizeProjectForWorkspace(workspace: WorkspaceTab, project: P
     clientName: workspace === "freelancer" ? project.clientName : undefined,
     value: workspace === "freelancer" ? project.value : null,
     billing_date: workspace === "freelancer" ? project.billing_date : null,
+    dealStage: workspace === "freelancer" ? (project.dealStage ?? "client") : undefined,
     created_at,
     updated_at,
     timeline: project.timeline?.length
@@ -298,6 +312,7 @@ export function createProjectFromForm(workspace: WorkspaceTab, form: ProjectForm
     name: form.name.trim(),
     clientId: workspace === "freelancer" ? (form.clientId || null) : null,
     clientName: workspace === "freelancer" ? (form.clientName.trim() || undefined) : undefined,
+    dealStage: workspace === "freelancer" ? form.dealStage : undefined,
     description: form.description.trim() || null,
     status: form.status,
     stack: form.stack

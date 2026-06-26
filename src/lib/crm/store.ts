@@ -228,7 +228,7 @@ export interface LeadForm {
 // Pipeline stages
 export const PIPELINE_STAGE_LABEL: Record<PipelineStage, string> = {
   lead: "Lead",
-  qualified: "Qualificado",
+  qualified: "Contato",
   meeting: "Reunião",
   proposal: "Proposta",
   project: "Projeto",

@@ -72,6 +72,8 @@ function proposalToRow(p: ProposalEntry): Record<string, unknown> {
     entry_value: p.entryValue,
     payment_method: p.paymentMethod,
     is_partnership: p.isPartnership,
+    domain_first_year_free: p.domainFirstYearFree,
+    hosting_first_year_free: p.hostingFirstYearFree,
     included: p.included,
     not_included: p.notIncluded,
     notes: p.notes,
@@ -99,6 +101,8 @@ export function rowToProposal(row: Record<string, unknown>): Partial<ProposalEnt
     entryValue: (row.entry_value as number) ?? 0,
     paymentMethod: (row.payment_method as string) ?? "",
     isPartnership: (row.is_partnership as boolean) ?? false,
+    domainFirstYearFree: (row.domain_first_year_free as boolean) ?? false,
+    hostingFirstYearFree: (row.hosting_first_year_free as boolean) ?? false,
     included: (row.included as string[]) ?? [],
     notIncluded: (row.not_included as string[]) ?? [],
     notes: (row.notes as string | null) ?? null,
@@ -190,6 +194,7 @@ function projectToRow(p: ProjectEntry, workspace: string): Record<string, unknow
     description: p.description,
     status: p.status,
     value: p.value,
+    deal_stage: p.dealStage ?? "client",
     observations: p.observations,
     billing_date: p.billing_date,
     started_at: p.started_at,
@@ -212,6 +217,7 @@ export function rowToProject(row: Record<string, unknown>): ProjectEntry {
     description: (row.description as string | null) ?? null,
     status: row.status as ProjectEntry["status"],
     value: (row.value as number | null) ?? null,
+    dealStage: (row.deal_stage as ProjectEntry["dealStage"]) ?? "client",
     observations: (row.observations as string | null) ?? null,
     billing_date: (row.billing_date as string | null) ?? null,
     started_at: (row.started_at as string | null) ?? null,
@@ -227,16 +233,36 @@ export function rowToProject(row: Record<string, unknown>): ProjectEntry {
 
 // ─── Sync helpers ─────────────────────────────────────────────────────────────
 
+function stripRowColumns(rows: Record<string, unknown>[], keys: string[]) {
+  return rows.map((row) =>
+    Object.fromEntries(Object.entries(row).filter(([key]) => !keys.includes(key)))
+  )
+}
+
+function isProposalAddonColumnError(message: string) {
+  return /domain_first_year_free/i.test(message) || /hosting_first_year_free/i.test(message)
+}
+
+const PROPOSAL_ADDON_COLUMN_KEYS = ["domain_first_year_free", "hosting_first_year_free"]
+let proposalAddonColumnsSupported: boolean | null = null
+
 async function syncTable(
   table: string,
   ids: string[],
-  rows: Record<string, unknown>[]
+  rows: Record<string, unknown>[],
+  options: { quiet?: boolean } = {}
 ) {
   const supabase = createClient()
+  let upsertError: string | null = null
 
   if (rows.length > 0) {
     const { error } = await supabase.from(table).upsert(rows, { onConflict: "id" })
-    if (error) console.error(`[supabase] upsert ${table}:`, error.message)
+    if (error) {
+      upsertError = error.message
+      if (!options.quiet) {
+        console.error(`[supabase] upsert ${table}:`, error.message)
+      }
+    }
   }
 
   if (ids.length === 0) {
@@ -244,6 +270,8 @@ async function syncTable(
   } else {
     await supabase.from(table).delete().not("id", "in", `(${ids.join(",")})`)
   }
+
+  return upsertError
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -253,7 +281,36 @@ export async function syncLeadsToSupabase(data: LeadEntry[]) {
 }
 
 export async function syncProposalsToSupabase(data: ProposalEntry[]) {
-  await syncTable("proposals", data.map((p) => p.id), data.map(proposalToRow))
+  const ids = data.map((p) => p.id)
+  const fullRows = data.map(proposalToRow)
+
+  if (proposalAddonColumnsSupported === false) {
+    await syncTable("proposals", ids, stripRowColumns(fullRows, PROPOSAL_ADDON_COLUMN_KEYS))
+    return
+  }
+
+  const upsertError = await syncTable("proposals", ids, fullRows, { quiet: true })
+
+  if (!upsertError) {
+    proposalAddonColumnsSupported = true
+    return
+  }
+
+  if (!isProposalAddonColumnError(upsertError)) {
+    console.error("[supabase] upsert proposals:", upsertError)
+    return
+  }
+
+  proposalAddonColumnsSupported = false
+  const legacyError = await syncTable(
+    "proposals",
+    ids,
+    stripRowColumns(fullRows, PROPOSAL_ADDON_COLUMN_KEYS)
+  )
+
+  if (legacyError) {
+    console.error("[supabase] upsert proposals:", legacyError)
+  }
 }
 
 export async function syncClientsToSupabase(data: ClientEntry[]) {
@@ -269,7 +326,13 @@ export async function syncProjectsToSupabase(data: Record<WorkspaceTab, ProjectE
       rows.push(projectToRow(p, workspace))
     }
   }
-  await syncTable("projects", ids, rows)
+  const upsertError = await syncTable("projects", ids, rows)
+  if (!upsertError || !/deal_stage/i.test(upsertError)) return
+
+  const legacyRows = rows.map((row) =>
+    Object.fromEntries(Object.entries(row).filter(([key]) => key !== "deal_stage"))
+  )
+  await syncTable("projects", ids, legacyRows)
 }
 
 export async function fetchAllFromSupabase() {

@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useSearchParams } from "next/navigation"
 import { Eye, FileText, MoreHorizontal, Plus, WalletCards } from "lucide-react"
 
 import { type PeriodFilter } from "@/components/proposals/constants"
@@ -15,9 +16,11 @@ import {
   normalizeSearch,
 } from "@/components/proposals/utils"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { PageHeader } from "@/components/ui/page-header"
 import {
   emitClientsChange,
+  type ClientEntry,
   getClientsServerSnapshot,
   getClientsSnapshot,
   linkProposalToClient,
@@ -27,9 +30,12 @@ import {
 } from "@/lib/clients/store"
 import {
   emitLeadsChange,
+  getLeadsServerSnapshot,
   getLeadsSnapshot,
   linkProposalToLead,
   saveLeads,
+  subscribeLeadsStore,
+  type LeadEntry,
 } from "@/lib/crm/store"
 import { getProjectsSnapshot } from "@/lib/projects/store"
 import {
@@ -38,6 +44,7 @@ import {
   duplicateProposal,
   emitProposalsChange,
   EMPTY_PROPOSAL_FORM,
+  getProposalPlanName,
   getProposalsServerSnapshot,
   getProposalsSnapshot,
   saveProposals,
@@ -55,16 +62,27 @@ type DeepLinkState = {
   consumed: boolean
 }
 
-function readProposalDeepLink(): DeepLinkState {
+function resolveProposalDeepLink({
+  search,
+  proposals,
+  leads,
+  clients,
+}: {
+  search: string
+  proposals: ProposalEntry[]
+  leads: LeadEntry[]
+  clients: ClientEntry[]
+}): DeepLinkState {
   const empty: DeepLinkState = {
     viewing: null,
     isCreating: false,
     prefillForm: null,
     consumed: false,
   }
-  if (typeof window === "undefined") return empty
 
-  const params = new URLSearchParams(window.location.search)
+  if (!search) return empty
+
+  const params = new URLSearchParams(search)
   const leadId = params.get("leadId")
   const clientId = params.get("clientId")
   const isNew = params.get("new")
@@ -75,14 +93,14 @@ function readProposalDeepLink(): DeepLinkState {
   let prefillForm: ProposalForm | null = null
 
   if (viewId) {
-    const found = getProposalsSnapshot().find((proposal) => proposal.id === viewId)
+    const found = proposals.find((proposal) => proposal.id === viewId)
     if (found) {
       viewing = found
       consumed = true
     }
   }
   if (isNew && leadId) {
-    const lead = getLeadsSnapshot().find((item) => item.id === leadId)
+    const lead = leads.find((item) => item.id === leadId)
     if (lead) {
       prefillForm = buildProposalFormFromLead(lead)
       isCreating = true
@@ -90,7 +108,7 @@ function readProposalDeepLink(): DeepLinkState {
     }
   }
   if (isNew && clientId) {
-    const client = getClientsSnapshot().find((item) => item.id === clientId)
+    const client = clients.find((item) => item.id === clientId)
     if (client) {
       prefillForm = buildProposalFormFromClient(client)
       isCreating = true
@@ -102,25 +120,60 @@ function readProposalDeepLink(): DeepLinkState {
 }
 
 export default function ProposalsPage() {
+  const searchParams = useSearchParams()
   const proposals = useSyncExternalStore(
     subscribeProposalsStore,
     getProposalsSnapshot,
     getProposalsServerSnapshot
   )
+  const leads = useSyncExternalStore(
+    subscribeLeadsStore,
+    getLeadsSnapshot,
+    getLeadsServerSnapshot
+  )
   const clients = useSyncExternalStore(subscribeClientsStore, getClientsSnapshot, getClientsServerSnapshot)
-  const [deepLink] = useState(readProposalDeepLink)
-  const [isCreating, setIsCreating] = useState(deepLink.isCreating)
-  const [prefillForm, setPrefillForm] = useState<ProposalForm | null>(deepLink.prefillForm)
+  const handledSearchRef = useRef("")
+  const [isCreating, setIsCreating] = useState(false)
+  const [prefillForm, setPrefillForm] = useState<ProposalForm | null>(null)
   const [editing, setEditing] = useState<ProposalEntry | null>(null)
-  const [viewing, setViewing] = useState<ProposalEntry | null>(deepLink.viewing)
+  const [viewing, setViewing] = useState<ProposalEntry | null>(null)
+  const [proposalPendingDelete, setProposalPendingDelete] = useState<ProposalEntry | null>(null)
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<ProposalStatus | "all">("all")
   const [clientFilter, setClientFilter] = useState("all")
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all")
 
   useEffect(() => {
-    if (deepLink.consumed) window.history.replaceState(null, "", window.location.pathname)
-  }, [deepLink.consumed])
+    const search = searchParams.toString()
+    if (!search || handledSearchRef.current === search) return
+
+    const deepLink = resolveProposalDeepLink({
+      search,
+      proposals,
+      leads,
+      clients,
+    })
+
+    if (!deepLink.consumed) return
+
+    handledSearchRef.current = search
+
+    queueMicrotask(() => {
+      if (deepLink.viewing) {
+        setViewing(deepLink.viewing)
+        setEditing(null)
+        setPrefillForm(null)
+        setIsCreating(false)
+      } else if (deepLink.isCreating && deepLink.prefillForm) {
+        setViewing(null)
+        setEditing(null)
+        setPrefillForm(deepLink.prefillForm)
+        setIsCreating(true)
+      }
+
+      window.history.replaceState(null, "", window.location.pathname)
+    })
+  }, [clients, leads, proposals, searchParams])
 
   const filtered = useMemo(() => {
     const search = normalizeSearch(query)
@@ -131,7 +184,12 @@ export default function ProposalsPage() {
         if (!isInPeriod(proposal.proposalDate, periodFilter)) return false
         if (!search) return true
         return normalizeSearch(
-          [proposal.clientName, proposal.objective, proposal.estimatedDeadline].join(" ")
+          [
+            proposal.clientName,
+            getProposalPlanName(proposal),
+            proposal.objective,
+            proposal.estimatedDeadline,
+          ].join(" ")
         ).includes(search)
       })
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -209,9 +267,14 @@ export default function ProposalsPage() {
   }
 
   function handleDelete(proposal: ProposalEntry) {
-    if (!window.confirm(`Excluir a proposta de "${proposal.clientName}"?`)) return
-    persist(proposals.filter((item) => item.id !== proposal.id))
-    if (viewing?.id === proposal.id) setViewing(null)
+    setProposalPendingDelete(proposal)
+  }
+
+  function confirmDeleteProposal() {
+    if (!proposalPendingDelete) return
+    persist(proposals.filter((item) => item.id !== proposalPendingDelete.id))
+    if (viewing?.id === proposalPendingDelete.id) setViewing(null)
+    setProposalPendingDelete(null)
   }
 
   async function handleShare(proposal: ProposalEntry) {
@@ -221,7 +284,7 @@ export default function ProposalsPage() {
 
   return (
     <>
-      <div className="flex flex-col gap-6">
+      <div className="min-w-0 flex flex-col gap-6">
         <PageHeader
           title="Propostas"
           description="Centralize propostas antes da aprovação e futura conversão em projeto."
@@ -233,7 +296,7 @@ export default function ProposalsPage() {
           }
         />
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Metric label="Propostas" value={totals.count} icon={FileText} />
           <Metric label="Em negociação" value={totals.sent} icon={MoreHorizontal} />
           <Metric label="Aprovadas" value={totals.approved} icon={Eye} />
@@ -292,6 +355,19 @@ export default function ProposalsPage() {
         }}
         onDuplicate={handleDuplicate}
         onShare={handleShare}
+      />
+      <ConfirmDialog
+        open={!!proposalPendingDelete}
+        onOpenChange={(open) => !open && setProposalPendingDelete(null)}
+        title="Excluir proposta"
+        description={
+          proposalPendingDelete
+            ? `A proposta de "${proposalPendingDelete.clientName}" será removida do sistema.`
+            : undefined
+        }
+        confirmLabel="Excluir proposta"
+        confirmVariant="destructive"
+        onConfirm={confirmDeleteProposal}
       />
     </>
   )

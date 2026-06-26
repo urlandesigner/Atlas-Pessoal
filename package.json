@@ -2,13 +2,20 @@
   "name": "atlas-pessoal",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
+    "predev": "npm run build -w @atlas/site-factory",
     "dev": "next dev -p 3003 --webpack",
+    "prebuild": "npm run build -w @atlas/site-factory",
     "build": "next build",
+    "prestart": "npm run build -w @atlas/site-factory",
     "start": "next start -p 3003",
     "lint": "eslint"
   },
   "dependencies": {
+    "@atlas/site-factory": "file:packages/site-factory",
     "@base-ui/react": "^1.5.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.108.1",

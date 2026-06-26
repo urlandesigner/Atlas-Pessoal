@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet"
 import {
   createProposalForm,
+  getProposalPlanName,
   getProposalsServerSnapshot,
   getProposalsSnapshot,
   PROPOSAL_STATUS_LABEL,
@@ -60,7 +61,17 @@ export function ProposalView({
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                {current.clientName} · {current.isPartnership ? (current.totalValue > 0 ? `Gratuito · Parceria + ${money(current.totalValue)}` : "Gratuito · Parceria") : money(current.totalValue)} · {current.estimatedDeadline || "Prazo a definir"}
+                {[
+                  getProposalPlanName(current) || null,
+                  current.isPartnership
+                    ? current.totalValue > 0
+                      ? `Gratuito · Parceria + ${money(current.totalValue)}`
+                      : "Gratuito · Parceria"
+                    : money(current.totalValue),
+                  current.estimatedDeadline || "Prazo a definir",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             </SheetHeader>
             <ScrollArea className="min-h-0 flex-1 bg-muted/20">

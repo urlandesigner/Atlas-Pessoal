@@ -1,12 +1,27 @@
-import { Copy, Eye, FileText, Plus, Search, Trash2 } from "lucide-react"
+import { Copy, Eye, FileText, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react"
 
 import { PERIOD_LABEL, STATUS_CLASS, type PeriodFilter } from "@/components/proposals/constants"
 import { formatDate, money } from "@/components/proposals/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  getProposalPlanName,
   PROPOSAL_STATUS_LABEL,
   PROPOSAL_STATUS_OPTIONS,
   type ProposalEntry,
@@ -76,17 +91,21 @@ export function ProposalFilters({
   return (
     <Card className="py-0">
       <CardContent className="px-4 py-3">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_12rem_12rem_12rem]">
-          <div className="relative">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_12rem_12rem_12rem]">
+          <div className="relative min-w-0">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="Buscar por cliente, objetivo..."
+              placeholder="Buscar por cliente ou plano..."
               className="pl-9"
             />
           </div>
-          <select value={clientFilter} onChange={(event) => onClientFilterChange(event.target.value)} className={selectClassName}>
+          <select
+            value={clientFilter}
+            onChange={(event) => onClientFilterChange(event.target.value)}
+            className={cn(selectClassName, "w-full min-w-0")}
+          >
             <option value="all">Todos clientes</option>
             {clients.map((client) => (
               <option key={client.id} value={client.id}>
@@ -97,7 +116,7 @@ export function ProposalFilters({
           <select
             value={statusFilter}
             onChange={(event) => onStatusFilterChange(event.target.value as ProposalStatus | "all")}
-            className={selectClassName}
+            className={cn(selectClassName, "w-full min-w-0")}
           >
             <option value="all">Todos status</option>
             {PROPOSAL_STATUS_OPTIONS.map((status) => (
@@ -109,7 +128,7 @@ export function ProposalFilters({
           <select
             value={periodFilter}
             onChange={(event) => onPeriodFilterChange(event.target.value as PeriodFilter)}
-            className={selectClassName}
+            className={cn(selectClassName, "w-full min-w-0")}
           >
             {Object.entries(PERIOD_LABEL).map(([value, label]) => (
               <option key={value} value={value}>
@@ -157,51 +176,105 @@ export function ProposalList({
     )
   }
 
+  function proposalTotalLabel(proposal: ProposalEntry) {
+    if (!proposal.isPartnership) return money(proposal.totalValue)
+    if (proposal.totalValue > 0) return `Parceria + ${money(proposal.totalValue)}`
+    return "Gratuito · Parceria"
+  }
+
   return (
-    <div className="grid gap-4">
-      {proposals.map((proposal) => (
-        <Card key={proposal.id} className="py-0 transition-colors hover:bg-muted/25">
-          <CardContent className="grid grid-cols-1 gap-3 px-4 py-3 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h2 className="line-clamp-1 text-lg font-semibold leading-snug">{proposal.clientName}</h2>
-                <Badge variant="outline" className={cn("h-6 px-2.5 text-sm font-normal", STATUS_CLASS[proposal.status])}>
+    <Card className="min-w-0 overflow-hidden py-0">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>Cliente</TableHead>
+            <TableHead className="hidden md:table-cell">Status</TableHead>
+            <TableHead className="hidden lg:table-cell">Valor</TableHead>
+            <TableHead className="hidden lg:table-cell">Prazo</TableHead>
+            <TableHead className="hidden text-right md:table-cell">Validade</TableHead>
+            <TableHead className="w-px" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {proposals.map((proposal) => (
+            <TableRow
+              key={proposal.id}
+              className="group cursor-pointer"
+              onClick={() => onView(proposal)}
+            >
+              <TableCell className="whitespace-normal">
+                <div className="min-w-0">
+                  <span className="block truncate font-medium underline-offset-2 group-hover:underline">
+                    {proposal.clientName}
+                  </span>
+                  <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">
+                    {getProposalPlanName(proposal) || "Plano não definido"}
+                  </span>
+                </div>
+              </TableCell>
+              <TableCell className="hidden md:table-cell">
+                <Badge
+                  variant="outline"
+                  className={cn("h-6 px-2.5 text-xs font-normal", STATUS_CLASS[proposal.status])}
+                >
                   {PROPOSAL_STATUS_LABEL[proposal.status]}
                 </Badge>
-              </div>
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <Info
-                  label="Valor total"
-                  value={
-                    proposal.isPartnership
-                      ? proposal.totalValue > 0
-                        ? `Gratuito · Parceria + ${money(proposal.totalValue)}`
-                        : "Gratuito · Parceria"
-                      : money(proposal.totalValue)
-                  }
-                />
-                <Info label="Prazo" value={proposal.estimatedDeadline || "A definir"} />
-                <Info label="Validade" value={formatDate(proposal.validUntil)} />
-              </div>
-            </div>
-            <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
-              <Button variant="outline" size="sm" onClick={() => onView(proposal)}>
-                <Eye data-icon="inline-start" />
-                Ver
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => onEdit(proposal)}>
-                Editar
-              </Button>
-              <Button variant="ghost" size="icon-sm" onClick={() => onDuplicate(proposal)}>
-                <Copy />
-              </Button>
-              <Button variant="ghost" size="icon-sm" onClick={() => onDelete(proposal)}>
-                <Trash2 />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+              </TableCell>
+              <TableCell className="hidden lg:table-cell">
+                <span className="text-xs text-muted-foreground">
+                  {proposalTotalLabel(proposal)}
+                </span>
+              </TableCell>
+              <TableCell className="hidden lg:table-cell">
+                <span className="text-xs text-muted-foreground">
+                  {proposal.estimatedDeadline || "A definir"}
+                </span>
+              </TableCell>
+              <TableCell className="hidden text-right text-xs text-muted-foreground md:table-cell">
+                {formatDate(proposal.validUntil)}
+              </TableCell>
+              <TableCell
+                className="w-px text-right"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-7 opacity-0 group-hover:opacity-100 data-[popup-open]:opacity-100"
+                      />
+                    }
+                  >
+                    <MoreHorizontal className="size-3.5" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem onClick={() => onView(proposal)}>
+                      <Eye className="size-3.5" />
+                      Ver proposta
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onEdit(proposal)}>
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onDuplicate(proposal)}>
+                      <Copy className="size-3.5" />
+                      Duplicar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onClick={() => onDelete(proposal)}
+                    >
+                      <Trash2 className="size-3.5" />
+                      Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Card>
   )
 }

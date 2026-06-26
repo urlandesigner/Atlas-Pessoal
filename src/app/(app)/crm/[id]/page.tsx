@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -287,6 +288,10 @@ export default function LeadDetailPage() {
   const router = useRouter()
 
   const leads = useSyncExternalStore(subscribeLeadsStore, getLeadsSnapshot, getLeadsServerSnapshot)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [lostDialogOpen, setLostDialogOpen] = useState(false)
+  const [convertDialogOpen, setConvertDialogOpen] = useState(false)
+  const [lostReason, setLostReason] = useState("")
 
   const lead = useMemo(() => leads.find((l) => l.id === id) ?? null, [leads, id])
 
@@ -298,10 +303,10 @@ export default function LeadDetailPage() {
   }
 
   function handleDelete() {
-    if (!confirm("Excluir este lead permanentemente?")) return
     const next = getLeadsSnapshot().filter((l) => l.id !== id)
     saveLeads(next)
     emitLeadsChange()
+    setDeleteDialogOpen(false)
     router.push("/crm")
   }
 
@@ -315,8 +320,9 @@ export default function LeadDetailPage() {
   }
 
   function handleMarkLost(current: LeadEntry) {
-    const reason = prompt("Motivo (opcional):") ?? ""
-    handleUpdate(markLeadLost(current, reason))
+    handleUpdate(markLeadLost(current, lostReason))
+    setLostReason("")
+    setLostDialogOpen(false)
   }
 
   function handleReopen(current: LeadEntry) {
@@ -325,12 +331,11 @@ export default function LeadDetailPage() {
 
   function handleConvertToClient(current: LeadEntry) {
     if (current.client_id) return
-    const label = current.prospect.company || current.qualification.contact_name || "este lead"
-    if (!confirm(`Converter "${label}" em cliente cadastrado?`)) return
     const { clients: nextClients, clientId } = upsertClientFromLead(getClientsSnapshot(), current)
     saveClients(nextClients)
     emitClientsChange()
     handleUpdate(linkClientToLead(current, clientId))
+    setConvertDialogOpen(false)
   }
 
   if (!lead) {
@@ -388,7 +393,7 @@ export default function LeadDetailPage() {
             <Button
               size="sm"
               variant="ghost"
-              onClick={handleDelete}
+              onClick={() => setDeleteDialogOpen(true)}
               className="gap-1.5 text-muted-foreground hover:text-rose-600"
             >
               <Trash2 className="size-3.5" />
@@ -538,7 +543,7 @@ export default function LeadDetailPage() {
                   ) : (
                     <Button
                       size="sm"
-                      onClick={() => handleConvertToClient(lead)}
+                      onClick={() => setConvertDialogOpen(true)}
                       className="h-7 gap-1.5 px-3 text-xs"
                     >
                       <UserPlus className="size-3.5" />
@@ -548,7 +553,7 @@ export default function LeadDetailPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => handleMarkLost(lead)}
+                    onClick={() => setLostDialogOpen(true)}
                     className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
                     title="Marcar como perdido"
                   >
@@ -578,6 +583,47 @@ export default function LeadDetailPage() {
           />
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Excluir lead"
+        description="Este lead será removido permanentemente do CRM."
+        confirmLabel="Excluir lead"
+        confirmVariant="destructive"
+        onConfirm={handleDelete}
+      />
+      <ConfirmDialog
+        open={lostDialogOpen}
+        onOpenChange={(open) => {
+          setLostDialogOpen(open)
+          if (!open) setLostReason("")
+        }}
+        title="Marcar como perdido"
+        description="Se quiser, registre um motivo para manter esse histórico no lead."
+        confirmLabel="Marcar como perdido"
+        confirmVariant="destructive"
+        onConfirm={() => handleMarkLost(lead)}
+      >
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-muted-foreground">
+            Motivo opcional
+          </label>
+          <Textarea
+            value={lostReason}
+            onChange={(event) => setLostReason(event.target.value)}
+            placeholder="Ex: sem retorno, orçamento fora da expectativa..."
+            rows={4}
+          />
+        </div>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={convertDialogOpen}
+        onOpenChange={setConvertDialogOpen}
+        title="Converter em cliente"
+        description={`"${lead.prospect.company || lead.qualification.contact_name || "Este lead"}" será convertido em cliente cadastrado.`}
+        confirmLabel="Converter lead"
+        onConfirm={() => handleConvertToClient(lead)}
+      />
     </div>
   )
 }

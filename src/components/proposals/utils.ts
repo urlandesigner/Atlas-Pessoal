@@ -2,7 +2,10 @@ import type { ClientEntry } from "@/lib/clients/store"
 import type { LeadEntry } from "@/lib/crm/store"
 import {
   EMPTY_PROPOSAL_FORM,
+  getDefaultProposalDate,
+  getProposalAddonOptions,
   getProposalDisplayTotal,
+  getProposalValidUntil,
   type ProposalEntry,
   type ProposalForm,
 } from "@/lib/proposals/store"
@@ -27,9 +30,16 @@ export function parseNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+export function formatAddonPrice(price: number, firstYearFree: boolean, withPlus = false) {
+  if (firstYearFree) return "Gratuito (1º ano)"
+  const value = money(price)
+  return withPlus ? `+ ${value}` : value
+}
+
 export function getResolvedTotal(form: ProposalForm | ProposalEntry) {
   const rawTotal = typeof form.totalValue === "number" ? form.totalValue : parseNumber(form.totalValue)
-  return getProposalDisplayTotal(form.isPartnership, rawTotal, form.included)
+  const options = getProposalAddonOptions(form)
+  return getProposalDisplayTotal(form.isPartnership, rawTotal, form.included, options)
 }
 
 export function getEntryValue(form: ProposalForm | ProposalEntry) {
@@ -66,28 +76,32 @@ export function normalizeSearch(value: string) {
 export function buildProposalFormFromLead(lead: LeadEntry): ProposalForm {
   const clientName =
     lead.prospect.company || lead.qualification.contact_name?.trim() || lead.name?.trim() || ""
+  const proposalDate = getDefaultProposalDate()
   return {
     ...EMPTY_PROPOSAL_FORM,
     leadId: lead.id,
     clientId: lead.client_id ?? "",
     clientName,
-    title: clientName,
+    title: "",
     objective: lead.qualification.project_objective?.trim() || "",
     totalValue: lead.opportunity.estimated_value ? String(lead.opportunity.estimated_value) : "",
-    proposalDate: new Date().toISOString().split("T")[0],
+    proposalDate,
+    validUntil: getProposalValidUntil(proposalDate),
   }
 }
 
 export function buildProposalFormFromClient(client: ClientEntry): ProposalForm {
   const clientName = client.company || client.name || ""
+  const proposalDate = getDefaultProposalDate()
   return {
     ...EMPTY_PROPOSAL_FORM,
     leadId: client.leadId ?? "",
     clientId: client.id,
     clientName,
-    title: clientName,
+    title: "",
     objective: client.projectName?.trim() || "",
     totalValue: client.contractedValue ? String(client.contractedValue) : "",
-    proposalDate: new Date().toISOString().split("T")[0],
+    proposalDate,
+    validUntil: getProposalValidUntil(proposalDate),
   }
 }

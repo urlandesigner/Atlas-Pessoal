@@ -1,5 +1,6 @@
 import {
   DOMAIN_ADDON_PRICE,
+  getProposalAddonOptions,
   getProposalAddonTotal,
   getProposalDevelopmentTotal,
   getProposalDisplayTotal,
@@ -11,16 +12,22 @@ import {
   type ProposalForm,
 } from "@/lib/proposals/store"
 
-import { formatDate, money, parseNumber } from "./utils"
+import { formatAddonPrice, formatDate, money, parseNumber } from "./utils"
+import { renderProposalAddonExplanationHtml } from "./addon-copy"
+
+function addonPrintCell(price: number, firstYearFree: boolean, withPlus = false) {
+  return formatAddonPrice(price, firstYearFree, withPlus)
+}
 
 export function createPrintHtml(form: ProposalForm | ProposalEntry) {
   const rawTotal = typeof form.totalValue === "number" ? form.totalValue : parseNumber(form.totalValue)
+  const addonOptions = getProposalAddonOptions(form)
   const printIncludeDomain = form.included.some((i) => /(domínio|dominio)/i.test(i))
   const printIncludeHosting = form.included.some((i) => /hospedagem/i.test(i))
-  const printAddonTotal = getProposalAddonTotal(form.included)
-  const isPartnership = resolveProposalPartnership(form.isPartnership, rawTotal, form.included)
-  const total = getProposalDisplayTotal(form.isPartnership, rawTotal, form.included)
-  const printBaseTotal = getProposalDevelopmentTotal(form.isPartnership, rawTotal, form.included)
+  const printAddonTotal = getProposalAddonTotal(form.included, addonOptions)
+  const isPartnership = resolveProposalPartnership(form.isPartnership, rawTotal, form.included, addonOptions)
+  const total = getProposalDisplayTotal(form.isPartnership, rawTotal, form.included, addonOptions)
+  const printBaseTotal = getProposalDevelopmentTotal(form.isPartnership, rawTotal, form.included, addonOptions)
   const logoUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/images/logo-urlandipre.svg`
@@ -75,17 +82,18 @@ ul{padding-left:20px}
 ${
   isPartnership
     ? printAddonTotal > 0
-      ? `<table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:15px"><tr><td>Desenvolvimento</td><td style="text-align:right"><strong>Gratuito · Parceria</strong></td></tr>${printIncludeDomain ? `<tr><td>Domínio (anual)</td><td style="text-align:right">${money(DOMAIN_ADDON_PRICE)}</td></tr>` : ""}${printIncludeHosting ? `<tr><td>Hospedagem (anual)</td><td style="text-align:right">${money(HOSTING_ADDON_PRICE)}</td></tr>` : ""}</table>
+      ? `<table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:15px"><tr><td>Desenvolvimento</td><td style="text-align:right"><strong>Gratuito · Parceria</strong></td></tr>${printIncludeDomain ? `<tr><td>Domínio (anual)</td><td style="text-align:right">${addonPrintCell(DOMAIN_ADDON_PRICE, addonOptions.domainFirstYearFree)}</td></tr>` : ""}${printIncludeHosting ? `<tr><td>Hospedagem (anual)</td><td style="text-align:right">${addonPrintCell(HOSTING_ADDON_PRICE, addonOptions.hostingFirstYearFree)}</td></tr>` : ""}</table>
 <p class="price">${money(total)}</p>
-<p>Pagamento: <strong>${getProposalPaymentMethod(form.isPartnership, form.paymentMethod, rawTotal, form.included)}</strong></p>
+<p>Pagamento: <strong>${getProposalPaymentMethod(form.isPartnership, form.paymentMethod, rawTotal, form.included, addonOptions)}</strong></p>
 <p>Desenvolvimento em parceria, sem cobrança. Domínio e hospedagem são cobranças anuais à parte.</p>`
       : `<p class="price">Gratuito · Parceria</p>
 <p>Pagamento: <strong>${PARTNERSHIP_PAYMENT_METHOD}</strong></p>
 <p>Projeto executado em parceria, sem cobrança.</p>`
-    : `${printAddonTotal > 0 ? `<table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:15px"><tr><td>Desenvolvimento</td><td style="text-align:right">${money(printBaseTotal)}</td></tr>${printIncludeDomain ? `<tr><td>Domínio (anual)</td><td style="text-align:right">+ ${money(DOMAIN_ADDON_PRICE)}</td></tr>` : ""}${printIncludeHosting ? `<tr><td>Hospedagem (anual)</td><td style="text-align:right">+ ${money(HOSTING_ADDON_PRICE)}</td></tr>` : ""}</table>` : ""}
+    : `${printAddonTotal > 0 || printIncludeDomain || printIncludeHosting ? `<table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:15px"><tr><td>Desenvolvimento</td><td style="text-align:right">${money(printBaseTotal)}</td></tr>${printIncludeDomain ? `<tr><td>Domínio (anual)</td><td style="text-align:right">${addonPrintCell(DOMAIN_ADDON_PRICE, addonOptions.domainFirstYearFree, true)}</td></tr>` : ""}${printIncludeHosting ? `<tr><td>Hospedagem (anual)</td><td style="text-align:right">${addonPrintCell(HOSTING_ADDON_PRICE, addonOptions.hostingFirstYearFree, true)}</td></tr>` : ""}</table>` : ""}
 <p class="price">${money(total)}</p>
-<p>Pagamento: <strong>${getProposalPaymentMethod(form.isPartnership, form.paymentMethod, rawTotal, form.included)}</strong></p>`
+<p>Pagamento: <strong>${getProposalPaymentMethod(form.isPartnership, form.paymentMethod, rawTotal, form.included, addonOptions)}</strong></p>`
 }</div>
+${renderProposalAddonExplanationHtml(form.included, addonOptions)}
 <div class="blk"><h2>Inclusos</h2><ul>${form.included.map((item) => `<li>${item}</li>`).join("")}</ul></div>
 <div class="blk"><h2>Não inclusos</h2><ul>${form.notIncluded.map((item) => `<li>${item}</li>`).join("")}</ul></div>
 ${form.notes ? `<div class="blk"><h2>Observações</h2><p>${form.notes}</p></div>` : ""}
