@@ -53,6 +53,7 @@ export function AtlasStorageProvider({ children }: { children: React.ReactNode }
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
         clear()
+        if (active) setReady(true)
         return
       }
       setTimeout(() => {
