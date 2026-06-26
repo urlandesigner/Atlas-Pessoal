@@ -17,7 +17,9 @@ import {
   resolveProposalPartnership,
   getProposalsSnapshot,
   HOSTING_ADDON_PRICE,
+  normalizeProposalEntry,
   subscribeProposalsStore,
+  type ProposalEntry,
 } from "@/lib/proposals/store"
 import { ProposalAddonExplanation } from "@/components/proposals/addon-explanation"
 import { formatAddonPrice } from "@/components/proposals/utils"
@@ -172,10 +174,45 @@ export default function ProposalWebPage() {
     getClientHydratedSnapshot,
     getServerHydratedSnapshot
   )
+  const [fetchedProposal, setFetchedProposal] = useState<ProposalEntry | null>(null)
+  const [publicLoadState, setPublicLoadState] = useState<"idle" | "loading" | "done">("idle")
 
-  const proposal = proposals.find((p) => p.id === params.id)
+  const storeProposal = proposals.find((p) => p.id === params.id)
+  const proposal = storeProposal ?? fetchedProposal
+
+  useEffect(() => {
+    if (!mounted) return
+    if (storeProposal) {
+      setPublicLoadState("done")
+      return
+    }
+
+    let active = true
+    setPublicLoadState("loading")
+
+    void fetch(`/api/proposals/${params.id}`)
+      .then(async (response) => {
+        if (!response.ok) return null
+        return response.json() as Promise<Partial<ProposalEntry>>
+      })
+      .then((data) => {
+        if (!active || !data?.id) return
+        setFetchedProposal(normalizeProposalEntry(data))
+      })
+      .finally(() => {
+        if (active) setPublicLoadState("done")
+      })
+
+    return () => {
+      active = false
+    }
+  }, [mounted, storeProposal, params.id])
 
   if (!mounted) {
+    return <div className={`${fraunces.variable} proposal-web min-h-screen`} />
+  }
+
+  if (!proposal && publicLoadState !== "done") {
     return <div className={`${fraunces.variable} proposal-web min-h-screen`} />
   }
 

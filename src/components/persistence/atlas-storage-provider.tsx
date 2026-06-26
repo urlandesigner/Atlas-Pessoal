@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { fetchAllFromSupabase } from "@/lib/supabase/data"
 import { hydrateLeads, emitLeadsChange } from "@/lib/crm/store"
@@ -16,7 +17,9 @@ function emitAll() {
 }
 
 export function AtlasStorageProvider({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false)
+  const pathname = usePathname()
+  const isPublicProposal = pathname.startsWith("/p/")
+  const [ready, setReady] = useState(isPublicProposal)
 
   useEffect(() => {
     const supabase = createClient()
