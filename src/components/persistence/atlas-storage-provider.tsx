@@ -18,10 +18,12 @@ function emitAll() {
 
 export function AtlasStorageProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isPublicProposal = pathname.startsWith("/p/")
+  const isPublicProposal = pathname.startsWith("/proposta/")
   const [ready, setReady] = useState(isPublicProposal)
 
   useEffect(() => {
+    if (isPublicProposal) return
+
     const supabase = createClient()
     let active = true
 
@@ -67,7 +69,7 @@ export function AtlasStorageProvider({ children }: { children: React.ReactNode }
       active = false
       sub.subscription.unsubscribe()
     }
-  }, [])
+  }, [isPublicProposal])
 
   if (!ready) {
     return (

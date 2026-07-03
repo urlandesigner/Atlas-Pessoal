@@ -1,7 +1,7 @@
 "use client"
 
-import { useSyncExternalStore } from "react"
-import { Copy, FileText, Globe, Printer, Share2 } from "lucide-react"
+import { useSyncExternalStore, useState } from "react"
+import { Copy, FileText, Globe, Percent, Printer, Share2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,7 +21,11 @@ import {
   subscribeProposalsStore,
   type ProposalEntry,
 } from "@/lib/proposals/store"
+import { buildPublicProposalUrl } from "@/lib/proposals/public"
+import { canCreateProposalOffer } from "@/lib/proposals/offers"
 import { cn } from "@/lib/utils"
+
+import { NewOfferDialog } from "./new-offer-dialog"
 
 import { STATUS_CLASS } from "./constants"
 import { printProposal } from "./print"
@@ -34,13 +38,16 @@ export function ProposalView({
   onEdit,
   onDuplicate,
   onShare,
+  onNewOffer,
 }: {
   proposal: ProposalEntry | null
   onClose: () => void
   onEdit: (proposal: ProposalEntry) => void
   onDuplicate: (proposal: ProposalEntry) => void
   onShare: (proposal: ProposalEntry) => void
+  onNewOffer: (proposal: ProposalEntry) => void
 }) {
+  const [offerOpen, setOfferOpen] = useState(false)
   const proposals = useSyncExternalStore(
     subscribeProposalsStore,
     getProposalsSnapshot,
@@ -88,7 +95,10 @@ export function ProposalView({
                 <FileText data-icon="inline-start" />
                 Exportar PDF
               </Button>
-              <Button variant="outline" onClick={() => window.open(`/p/${current.id}`, "_blank")}>
+              <Button
+                variant="outline"
+                onClick={() => window.open(buildPublicProposalUrl(current.publicToken), "_blank")}
+              >
                 <Globe data-icon="inline-start" />
                 Versão web
               </Button>
@@ -96,6 +106,12 @@ export function ProposalView({
                 <Share2 data-icon="inline-start" />
                 Compartilhar link
               </Button>
+              {canCreateProposalOffer(current) ? (
+                <Button variant="outline" onClick={() => setOfferOpen(true)}>
+                  <Percent data-icon="inline-start" />
+                  Nova oferta
+                </Button>
+              ) : null}
               <Button variant="outline" onClick={() => onDuplicate(current)}>
                 <Copy data-icon="inline-start" />
                 Duplicar
@@ -104,6 +120,12 @@ export function ProposalView({
                 Editar
               </Button>
             </div>
+            <NewOfferDialog
+              proposal={current}
+              open={offerOpen}
+              onOpenChange={setOfferOpen}
+              onConfirm={onNewOffer}
+            />
           </>
         ) : null}
       </SheetContent>

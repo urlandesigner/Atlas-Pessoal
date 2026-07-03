@@ -3,6 +3,7 @@ import type { ProposalEntry } from "@/lib/proposals/store"
 export function proposalToRow(p: ProposalEntry): Record<string, unknown> {
   return {
     id: p.id,
+    public_token: p.publicToken,
     title: p.title,
     client_id: p.clientId,
     client_name: p.clientName,
@@ -24,6 +25,10 @@ export function proposalToRow(p: ProposalEntry): Record<string, unknown> {
     not_included: p.notIncluded,
     notes: p.notes,
     status: p.status,
+    baseline_total_value: p.baselineTotalValue,
+    discount_percent: p.discountPercent,
+    offer_revision: p.offerRevision,
+    offer_updated_at: p.offerUpdatedAt,
     created_at: p.created_at,
     updated_at: p.updated_at,
   }
@@ -32,6 +37,7 @@ export function proposalToRow(p: ProposalEntry): Record<string, unknown> {
 export function rowToProposal(row: Record<string, unknown>): Partial<ProposalEntry> {
   return {
     id: row.id as string,
+    publicToken: (row.public_token as string | null) ?? undefined,
     title: row.title as string,
     clientId: (row.client_id as string | null) ?? null,
     clientName: (row.client_name as string) ?? "",
@@ -53,6 +59,10 @@ export function rowToProposal(row: Record<string, unknown>): Partial<ProposalEnt
     notIncluded: (row.not_included as string[]) ?? [],
     notes: (row.notes as string | null) ?? null,
     status: (row.status as ProposalEntry["status"]) ?? "draft",
+    baselineTotalValue: Number(row.baseline_total_value ?? 0),
+    discountPercent: Number(row.discount_percent ?? 0),
+    offerRevision: Number(row.offer_revision ?? 0),
+    offerUpdatedAt: (row.offer_updated_at as string | null) ?? null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
   }

@@ -3,12 +3,11 @@ import type { LeadEntry } from "@/lib/crm/store"
 import {
   EMPTY_PROPOSAL_FORM,
   getDefaultProposalDate,
-  getProposalAddonOptions,
-  getProposalDisplayTotal,
   getProposalValidUntil,
   type ProposalEntry,
   type ProposalForm,
 } from "@/lib/proposals/store"
+import { getProposalOfferPricing } from "@/lib/proposals/offers"
 
 import type { PeriodFilter } from "./constants"
 
@@ -37,9 +36,7 @@ export function formatAddonPrice(price: number, firstYearFree: boolean, withPlus
 }
 
 export function getResolvedTotal(form: ProposalForm | ProposalEntry) {
-  const rawTotal = typeof form.totalValue === "number" ? form.totalValue : parseNumber(form.totalValue)
-  const options = getProposalAddonOptions(form)
-  return getProposalDisplayTotal(form.isPartnership, rawTotal, form.included, options)
+  return getProposalOfferPricing(form).displayTotal
 }
 
 export function getEntryValue(form: ProposalForm | ProposalEntry) {

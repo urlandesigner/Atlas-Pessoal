@@ -1,6 +1,7 @@
 "use client"
 
 import { syncProposalsToSupabase } from "@/lib/supabase/data"
+import { createPublicProposalToken, normalizePublicProposalToken } from "@/lib/proposals/public"
 
 export type ProposalStatus =
   | "draft"
@@ -70,8 +71,13 @@ export function getProposalDisplayTotal(
   isPartnership: boolean,
   totalValue: number,
   included: string[],
-  options: ProposalAddonOptions = {}
+  options: ProposalAddonOptions = {},
+  offer?: Pick<ProposalEntry, "discountPercent" | "offerRevision" | "baselineTotalValue">
 ) {
+  if ((offer?.discountPercent ?? 0) > 0 && (offer?.offerRevision ?? 0) > 0) {
+    return totalValue
+  }
+
   const addonTotal = getProposalAddonTotal(included, options)
   if (resolveProposalPartnership(isPartnership, totalValue, included, options)) return addonTotal
   return Math.max(totalValue, addonTotal)
@@ -98,6 +104,7 @@ export interface ProposalScopeCategory {
 
 export interface ProposalEntry {
   id: string
+  publicToken: string
   title: string
   clientId: string | null
   clientName: string
@@ -119,6 +126,10 @@ export interface ProposalEntry {
   notIncluded: string[]
   notes: string | null
   status: ProposalStatus
+  baselineTotalValue: number
+  discountPercent: number
+  offerRevision: number
+  offerUpdatedAt: string | null
   created_at: string
   updated_at: string
 }
@@ -145,6 +156,9 @@ export interface ProposalForm {
   notIncluded: string[]
   notes: string
   status: ProposalStatus
+  baselineTotalValue: string
+  discountPercent: string
+  offerRevision: string
 }
 
 export interface ProposalTemplate {
@@ -241,6 +255,9 @@ export const EMPTY_PROPOSAL_FORM: ProposalForm = {
   notIncluded: [],
   notes: "",
   status: "draft",
+  baselineTotalValue: "0",
+  discountPercent: "0",
+  offerRevision: "0",
 }
 
 export const PROPOSAL_TEMPLATES: ProposalTemplate[] = [
@@ -421,10 +438,16 @@ export function normalizeProposalEntry(entry: Partial<ProposalEntry>): ProposalE
   const addonTotal = getProposalAddonTotal(included, addonOptions)
   const rawTotal = normalizeNumber(entry.totalValue)
   const isPartnership = resolveProposalPartnership(Boolean(entry.isPartnership), rawTotal, included, addonOptions)
-  const totalValue = isPartnership ? addonTotal : Math.max(rawTotal, addonTotal)
+  const hasOffer = (entry.discountPercent ?? 0) > 0 && (entry.offerRevision ?? 0) > 0
+  const totalValue = isPartnership
+    ? hasOffer
+      ? rawTotal
+      : addonTotal
+    : Math.max(rawTotal, addonTotal)
 
   return {
     id: entry.id ?? createId("proposal"),
+    publicToken: normalizePublicProposalToken(entry.publicToken),
     title: getProposalPlanName(entry),
     clientId: entry.clientId || null,
     clientName: entry.clientName?.trim() || "Cliente não informado",
@@ -446,6 +469,10 @@ export function normalizeProposalEntry(entry: Partial<ProposalEntry>): ProposalE
     notIncluded: normalizeStringList(entry.notIncluded),
     notes: entry.notes?.trim() || null,
     status: normalizeStatus(entry.status),
+    baselineTotalValue: normalizeNumber(entry.baselineTotalValue),
+    discountPercent: Math.min(Math.max(normalizeNumber(entry.discountPercent), 0), 100),
+    offerRevision: Math.max(normalizeNumber(entry.offerRevision), 0),
+    offerUpdatedAt: entry.offerUpdatedAt ?? null,
     created_at: createdAt,
     updated_at: entry.updated_at ?? createdAt,
   }
@@ -509,12 +536,16 @@ export function createProposalForm(entry: ProposalEntry): ProposalForm {
     notIncluded: [...normalized.notIncluded],
     notes: normalized.notes ?? "",
     status: normalized.status,
+    baselineTotalValue: String(normalized.baselineTotalValue || ""),
+    discountPercent: String(normalized.discountPercent || ""),
+    offerRevision: String(normalized.offerRevision || ""),
   }
 }
 
 export function createProposalFromForm(form: ProposalForm): ProposalEntry {
   const now = new Date().toISOString()
   return normalizeProposalEntry({
+    publicToken: createPublicProposalToken(),
     title: form.title.trim(),
     clientId: form.clientId || null,
     clientName: form.clientName,
@@ -536,6 +567,9 @@ export function createProposalFromForm(form: ProposalForm): ProposalEntry {
     notIncluded: form.notIncluded,
     notes: form.notes,
     status: form.status,
+    baselineTotalValue: normalizeNumber(form.baselineTotalValue),
+    discountPercent: normalizeNumber(form.discountPercent),
+    offerRevision: normalizeNumber(form.offerRevision),
     created_at: now,
     updated_at: now,
   })
@@ -571,6 +605,9 @@ export function updateProposalInCollection(
           notIncluded: form.notIncluded,
           notes: form.notes,
           status: form.status,
+          baselineTotalValue: normalizeNumber(form.baselineTotalValue),
+          discountPercent: normalizeNumber(form.discountPercent),
+          offerRevision: normalizeNumber(form.offerRevision),
           updated_at: new Date().toISOString(),
         })
       : proposal
@@ -581,8 +618,13 @@ export function duplicateProposal(proposal: ProposalEntry): ProposalEntry {
   return normalizeProposalEntry({
     ...proposal,
     id: createId("proposal"),
+    publicToken: createPublicProposalToken(),
     title: proposal.title,
     status: "draft",
+    baselineTotalValue: 0,
+    discountPercent: 0,
+    offerRevision: 0,
+    offerUpdatedAt: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   })

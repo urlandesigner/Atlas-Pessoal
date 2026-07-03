@@ -27,6 +27,7 @@ import {
   type ProposalEntry,
   type ProposalStatus,
 } from "@/lib/proposals/store"
+import { getProposalOfferPricing, hasActiveProposalOffer } from "@/lib/proposals/offers"
 import { cn } from "@/lib/utils"
 
 const selectClassName =
@@ -177,8 +178,11 @@ export function ProposalList({
   }
 
   function proposalTotalLabel(proposal: ProposalEntry) {
-    if (!proposal.isPartnership) return money(proposal.totalValue)
-    if (proposal.totalValue > 0) return `Parceria + ${money(proposal.totalValue)}`
+    const { displayTotal, hasOffer } = getProposalOfferPricing(proposal)
+    if (!proposal.isPartnership) {
+      return hasOffer ? `${money(displayTotal)} · oferta` : money(displayTotal)
+    }
+    if (displayTotal > 0) return `Parceria + ${money(displayTotal)}`
     return "Gratuito · Parceria"
   }
 
@@ -219,6 +223,11 @@ export function ProposalList({
                 >
                   {PROPOSAL_STATUS_LABEL[proposal.status]}
                 </Badge>
+                {hasActiveProposalOffer(proposal) ? (
+                  <Badge variant="secondary" className="ml-2 h-6 px-2.5 text-xs font-normal">
+                    Oferta {proposal.offerRevision}
+                  </Badge>
+                ) : null}
               </TableCell>
               <TableCell className="hidden lg:table-cell">
                 <span className="text-xs text-muted-foreground">

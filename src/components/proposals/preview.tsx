@@ -1,20 +1,20 @@
 import { Badge } from "@/components/ui/badge"
 import {
   DOMAIN_ADDON_PRICE,
-  getProposalAddonOptions,
   getProposalAddonTotal,
   getProposalDevelopmentTotal,
-  getProposalDisplayTotal,
   getProposalPaymentMethod,
   HOSTING_ADDON_PRICE,
   PROPOSAL_STATUS_LABEL,
   resolveProposalPartnership,
   type ProposalForm,
 } from "@/lib/proposals/store"
+import { getProposalOfferPricing } from "@/lib/proposals/offers"
 import { cn } from "@/lib/utils"
 
 import { STATUS_CLASS } from "./constants"
 import { ProposalAddonExplanation } from "./addon-explanation"
+import { ProposalOfferBanner, ProposalOfferTotal } from "./offer-pricing"
 import { formatAddonPrice, formatDate, money, parseNumber } from "./utils"
 import { hasProposalAddons } from "./addon-copy"
 
@@ -45,7 +45,7 @@ function Checklist({ items, empty }: { items: string[]; empty: string }) {
 
 export function ProposalPreview({ form }: { form: ProposalForm }) {
   const rawTotal = parseNumber(form.totalValue)
-  const addonOptions = getProposalAddonOptions(form)
+  const { addonOptions, displayTotal: total, hasOffer } = getProposalOfferPricing(form)
   const isPartnership = resolveProposalPartnership(Boolean(form.isPartnership), rawTotal, form.included, addonOptions)
   const paymentLabel = getProposalPaymentMethod(
     Boolean(form.isPartnership),
@@ -57,7 +57,6 @@ export function ProposalPreview({ form }: { form: ProposalForm }) {
   const includeDomain = form.included.some((i) => /(domínio|dominio)/i.test(i))
   const includeHosting = form.included.some((i) => /hospedagem/i.test(i))
   const addonTotal = getProposalAddonTotal(form.included, addonOptions)
-  const total = getProposalDisplayTotal(isPartnership, rawTotal, form.included, addonOptions)
   const baseTotal = getProposalDevelopmentTotal(isPartnership, rawTotal, form.included, addonOptions)
 
   return (
@@ -123,6 +122,7 @@ export function ProposalPreview({ form }: { form: ProposalForm }) {
       </PreviewSection>
 
       <PreviewSection title="Investimento">
+        {hasOffer ? <ProposalOfferBanner source={form} className="mb-4" /> : null}
         {isPartnership ? (
           includeDomain || includeHosting ? (
             <div className="rounded-xl bg-foreground p-5 text-background">
@@ -145,7 +145,11 @@ export function ProposalPreview({ form }: { form: ProposalForm }) {
                 )}
               </div>
               <p className="text-sm opacity-70">Total</p>
-              <p className="mt-1 text-3xl font-semibold tracking-tight">{money(total)}</p>
+              <ProposalOfferTotal
+                source={form}
+                totalClassName="mt-1 text-3xl font-semibold tracking-tight"
+                baselineClassName="text-base text-background/50 line-through"
+              />
               <div className="mt-5 rounded-lg border border-background/15 bg-background/5 p-4">
                 <p className="text-sm font-medium opacity-70">Pagamento</p>
                 <p className="mt-1 text-lg font-medium leading-7">{paymentLabel}</p>
@@ -187,7 +191,11 @@ export function ProposalPreview({ form }: { form: ProposalForm }) {
             </div>
           ) : null}
           <p className="text-sm opacity-70">Valor total</p>
-          <p className="mt-1 text-3xl font-semibold tracking-tight">{money(total)}</p>
+          <ProposalOfferTotal
+            source={form}
+            totalClassName="mt-1 text-3xl font-semibold tracking-tight"
+            baselineClassName="text-base text-background/50 line-through"
+          />
           <div className="mt-5 rounded-lg border border-background/15 bg-background/5 p-4">
             <p className="text-sm font-medium opacity-70">Pagamento</p>
             <p className="mt-1 text-lg font-medium leading-7">{paymentLabel}</p>

@@ -54,6 +54,7 @@ import {
   type ProposalForm,
   type ProposalStatus,
 } from "@/lib/proposals/store"
+import { buildPublicProposalUrl } from "@/lib/proposals/public"
 
 type DeepLinkState = {
   viewing: ProposalEntry | null
@@ -277,9 +278,15 @@ export default function ProposalsPage() {
     setProposalPendingDelete(null)
   }
 
-  async function handleShare(proposal: ProposalEntry) {
-    const url = `${window.location.origin}/p/${proposal.id}`
-    await navigator.clipboard?.writeText(url)
+  function handleShare(proposal: ProposalEntry) {
+    const url = buildPublicProposalUrl(proposal.publicToken)
+    void navigator.clipboard?.writeText(url)
+  }
+
+  function handleNewOffer(next: ProposalEntry) {
+    const updated = proposals.map((item) => (item.id === next.id ? next : item))
+    persist(updated)
+    setViewing(next)
   }
 
   return (
@@ -355,6 +362,7 @@ export default function ProposalsPage() {
         }}
         onDuplicate={handleDuplicate}
         onShare={handleShare}
+        onNewOffer={handleNewOffer}
       />
       <ConfirmDialog
         open={!!proposalPendingDelete}
