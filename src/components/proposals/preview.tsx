@@ -2,14 +2,13 @@ import { Badge } from "@/components/ui/badge"
 import {
   DOMAIN_ADDON_PRICE,
   getProposalAddonTotal,
-  getProposalDevelopmentTotal,
   getProposalPaymentMethod,
   HOSTING_ADDON_PRICE,
   PROPOSAL_STATUS_LABEL,
   resolveProposalPartnership,
   type ProposalForm,
 } from "@/lib/proposals/store"
-import { getProposalOfferPricing } from "@/lib/proposals/offers"
+import { getProposalOfferDiscountAmount, getProposalListDevelopmentTotal, getProposalOfferPricing } from "@/lib/proposals/offers"
 import { cn } from "@/lib/utils"
 
 import { STATUS_CLASS } from "./constants"
@@ -45,7 +44,7 @@ function Checklist({ items, empty }: { items: string[]; empty: string }) {
 
 export function ProposalPreview({ form }: { form: ProposalForm }) {
   const rawTotal = parseNumber(form.totalValue)
-  const { addonOptions, displayTotal: total, hasOffer } = getProposalOfferPricing(form)
+  const { addonOptions, displayTotal: total, hasOffer, discountPercent } = getProposalOfferPricing(form)
   const isPartnership = resolveProposalPartnership(Boolean(form.isPartnership), rawTotal, form.included, addonOptions)
   const paymentLabel = getProposalPaymentMethod(
     Boolean(form.isPartnership),
@@ -56,8 +55,8 @@ export function ProposalPreview({ form }: { form: ProposalForm }) {
   )
   const includeDomain = form.included.some((i) => /(domínio|dominio)/i.test(i))
   const includeHosting = form.included.some((i) => /hospedagem/i.test(i))
-  const addonTotal = getProposalAddonTotal(form.included, addonOptions)
-  const baseTotal = getProposalDevelopmentTotal(isPartnership, rawTotal, form.included, addonOptions)
+  const baseTotal = getProposalListDevelopmentTotal(form)
+  const discountAmount = getProposalOfferDiscountAmount(form)
 
   return (
     <div className="rounded-xl border bg-background p-5 shadow-sm">
@@ -188,6 +187,12 @@ export function ProposalPreview({ form }: { form: ProposalForm }) {
                   <span>{formatAddonPrice(HOSTING_ADDON_PRICE, addonOptions.hostingFirstYearFree, true)}</span>
                 </div>
               )}
+              {hasOffer && discountAmount > 0 ? (
+                <div className="flex justify-between text-background">
+                  <span>Desconto promocional ({discountPercent}%)</span>
+                  <span>- {money(discountAmount)}</span>
+                </div>
+              ) : null}
             </div>
           ) : null}
           <p className="text-sm opacity-70">Valor total</p>

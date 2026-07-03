@@ -1,6 +1,7 @@
 import type { ProposalEntry, ProposalForm } from "@/lib/proposals/store"
 import {
   getProposalAddonOptions,
+  getProposalDevelopmentTotal,
   getProposalDisplayTotal,
   normalizeProposalEntry,
 } from "@/lib/proposals/store"
@@ -39,9 +40,37 @@ function coerceOfferSource(source: ProposalOfferInput): ProposalOfferSource {
 }
 
 export function hasActiveProposalOffer(
-  source: Partial<Pick<ProposalEntry, "discountPercent" | "offerRevision">>
+  source: Partial<
+    Pick<ProposalEntry, "discountPercent" | "offerRevision" | "baselineTotalValue" | "totalValue">
+  >
 ) {
-  return (source.discountPercent ?? 0) > 0 && (source.offerRevision ?? 0) > 0
+  const discount = asOfferNumber(source.discountPercent)
+  const revision = asOfferNumber(source.offerRevision)
+  const baseline = asOfferNumber(source.baselineTotalValue)
+  const total = asOfferNumber(source.totalValue)
+
+  if (discount > 0 && revision > 0) return true
+  if (discount > 0 && baseline > total + 0.009) return true
+  return false
+}
+
+export function getProposalOfferDiscountAmount(source: ProposalOfferInput) {
+  const pricing = getProposalOfferPricing(source)
+  if (!pricing.hasOffer) return 0
+  return Math.max(pricing.baseline - pricing.displayTotal, 0)
+}
+
+export function getProposalListDevelopmentTotal(source: ProposalOfferInput) {
+  const pricing = getProposalOfferPricing(source)
+  const normalized = coerceOfferSource(source)
+  const listTotal = pricing.hasOffer ? pricing.baseline : normalized.totalValue
+
+  return getProposalDevelopmentTotal(
+    normalized.isPartnership,
+    listTotal,
+    normalized.included,
+    pricing.addonOptions
+  )
 }
 
 export function calculateDiscountedTotal(baseline: number, discountPercent: number) {

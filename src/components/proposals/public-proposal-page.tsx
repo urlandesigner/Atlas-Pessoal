@@ -8,16 +8,13 @@ import { hasProposalAddons } from "@/components/proposals/addon-copy"
 import { formatAddonPrice } from "@/components/proposals/utils"
 import {
   DOMAIN_ADDON_PRICE,
-  getProposalAddonOptions,
-  getProposalAddonTotal,
-  getProposalDevelopmentTotal,
   getProposalPaymentMethod,
   hasProposalDomain,
   hasProposalHosting,
   HOSTING_ADDON_PRICE,
   resolveProposalPartnership,
 } from "@/lib/proposals/store"
-import { getProposalOfferPricing } from "@/lib/proposals/offers"
+import { getProposalOfferDiscountAmount, getProposalListDevelopmentTotal, getProposalOfferPricing } from "@/lib/proposals/offers"
 import { type PublicProposalData } from "@/lib/proposals/public"
 import { ProposalOfferBanner } from "@/components/proposals/offer-pricing"
 
@@ -139,12 +136,8 @@ export function PublicProposalPage({ proposal }: { proposal: PublicProposalData 
     proposal.included,
     addonOptions
   )
-  const baseTotal = getProposalDevelopmentTotal(
-    proposal.isPartnership,
-    proposal.totalValue,
-    proposal.included,
-    addonOptions
-  )
+  const baseTotal = getProposalListDevelopmentTotal(proposal)
+  const discountAmount = getProposalOfferDiscountAmount(proposal)
   const paymentLabel = getProposalPaymentMethod(
     proposal.isPartnership,
     proposal.paymentMethod,
@@ -249,9 +242,9 @@ export function PublicProposalPage({ proposal }: { proposal: PublicProposalData 
             <SectionLabel index="03" title="Investimento" />
           </Reveal>
           {hasOffer ? (
-            <Reveal delay={40}>
-              <ProposalOfferBanner source={proposal} className="mb-8" />
-            </Reveal>
+            <div className="mb-8">
+              <ProposalOfferBanner source={proposal} variant="public" />
+            </div>
           ) : null}
           <Reveal delay={80}>
             <div className="invest-card overflow-hidden rounded-3xl">
@@ -341,6 +334,13 @@ export function PublicProposalPage({ proposal }: { proposal: PublicProposalData 
                           <Line
                             label="Hospedagem (anual)"
                             value={formatAddonPrice(HOSTING_ADDON_PRICE, addonOptions.hostingFirstYearFree, true)}
+                          />
+                        ) : null}
+                        {hasOffer && discountAmount > 0 ? (
+                          <Line
+                            label={`Desconto promocional (${discountPercent}%)`}
+                            value={`- ${money(discountAmount)}`}
+                            valueClassName="text-[var(--accent-2)]"
                           />
                         ) : null}
                       </div>
@@ -511,11 +511,19 @@ function Meta({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Line({ label, value }: { label: string; value: string }) {
+function Line({
+  label,
+  value,
+  valueClassName = "",
+}: {
+  label: string
+  value: string
+  valueClassName?: string
+}) {
   return (
     <div className="flex items-center justify-between">
       <span>{label}</span>
-      <span className="tabular-nums">{value}</span>
+      <span className={`tabular-nums ${valueClassName}`.trim()}>{value}</span>
     </div>
   )
 }

@@ -189,7 +189,27 @@ function isProposalAddonColumnError(message: string) {
   return /domain_first_year_free/i.test(message) || /hosting_first_year_free/i.test(message)
 }
 
+function isProposalOfferColumnError(message: string) {
+  return (
+    /baseline_total_value/i.test(message) ||
+    /discount_percent/i.test(message) ||
+    /offer_revision/i.test(message) ||
+    /offer_updated_at/i.test(message)
+  )
+}
+
+function isProposalSchemaColumnError(message: string) {
+  return isProposalAddonColumnError(message) || isProposalOfferColumnError(message)
+}
+
 const PROPOSAL_ADDON_COLUMN_KEYS = ["domain_first_year_free", "hosting_first_year_free"]
+const PROPOSAL_OFFER_COLUMN_KEYS = [
+  "baseline_total_value",
+  "discount_percent",
+  "offer_revision",
+  "offer_updated_at",
+]
+const PROPOSAL_LEGACY_COLUMN_KEYS = [...PROPOSAL_ADDON_COLUMN_KEYS, ...PROPOSAL_OFFER_COLUMN_KEYS]
 let proposalAddonColumnsSupported: boolean | null = null
 
 async function syncTable(
@@ -237,7 +257,7 @@ export async function syncProposalsToSupabase(data: ProposalEntry[]) {
     return
   }
 
-  if (!isProposalAddonColumnError(upsertError)) {
+  if (!isProposalSchemaColumnError(upsertError)) {
     console.error("[supabase] upsert proposals:", upsertError)
     return
   }
@@ -246,7 +266,7 @@ export async function syncProposalsToSupabase(data: ProposalEntry[]) {
   const legacyError = await syncTable(
     "proposals",
     ids,
-    stripRowColumns(fullRows, PROPOSAL_ADDON_COLUMN_KEYS)
+    stripRowColumns(fullRows, PROPOSAL_LEGACY_COLUMN_KEYS)
   )
 
   if (legacyError) {
