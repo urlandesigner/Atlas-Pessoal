@@ -11,11 +11,12 @@ import {
   MoreHorizontal,
   Plus,
   Search,
+  Send,
   Trash2,
   UserRound,
   X,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { PageHeader } from "@/components/ui/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -489,10 +490,19 @@ export default function CrmPage() {
         title="Leads & CRM"
         description="Gerencie seu pipeline comercial"
         actions={
-          <Button onClick={() => setSheetOpen(true)} size="sm" className="gap-1.5">
-            <Plus className="size-4" />
-            Novo Lead
-          </Button>
+          <>
+            <Link
+              href="/crm/abordagem"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+            >
+              <Send className="size-3.5" />
+              Modo Abordagem
+            </Link>
+            <Button onClick={() => setSheetOpen(true)} size="sm" className="gap-1.5">
+              <Plus className="size-4" />
+              Novo Lead
+            </Button>
+          </>
         }
       />
 
