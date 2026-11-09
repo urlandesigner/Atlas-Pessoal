@@ -311,7 +311,7 @@ function LeadTableRow({
             Perdido
           </span>
         ) : (
-          <StageBadge stage={lead.status_stage} />
+          <StageBadge stage={lead.status_stage} muted={lead.status_stage !== "lead"} />
         )}
       </TableCell>
 
