@@ -224,6 +224,20 @@ export function toApproachQueue(leads: LeadEntry[]) {
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
 }
 
+/**
+ * Que abordagem faz sentido agora para este lead: follow-up vencido tem
+ * prioridade; senão, primeira abordagem se ele ainda está no estágio Lead.
+ * `null` = nada a fazer (já abordado e aguardando, perdido ou mais adiante).
+ */
+export function outreachModeFor(
+  lead: LeadEntry,
+  today = localDate()
+): "approach" | "followup" | null {
+  if (lead.lost) return null
+  if (dueFollowup(lead, today)) return "followup"
+  return lead.status_stage === "lead" ? "approach" : null
+}
+
 export function followupQueue(leads: LeadEntry[], today = localDate()) {
   return leads
     .filter((l) => !l.lost && dueFollowup(l, today))

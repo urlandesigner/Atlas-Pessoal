@@ -17,6 +17,7 @@ import {
   Phone,
   RotateCcw,
   Save,
+  Send,
   Trash2,
   User,
   UserPlus,
@@ -57,6 +58,8 @@ import {
   upsertClientFromLead,
 } from "@/lib/clients/store"
 import { PipelineTracker, StageBadge } from "@/components/crm"
+import { OutreachSheet } from "@/components/crm/outreach-card"
+import { outreachModeFor } from "@/lib/crm/outreach"
 
 // ─── Shared field primitives ──────────────────────────────────────────────
 
@@ -292,6 +295,7 @@ export default function LeadDetailPage() {
   const [lostDialogOpen, setLostDialogOpen] = useState(false)
   const [convertDialogOpen, setConvertDialogOpen] = useState(false)
   const [lostReason, setLostReason] = useState("")
+  const [outreachOpen, setOutreachOpen] = useState(false)
 
   const lead = useMemo(() => leads.find((l) => l.id === id) ?? null, [leads, id])
 
@@ -352,6 +356,7 @@ export default function LeadDetailPage() {
     )
   }
 
+  const outreachMode = outreachModeFor(lead)
   const nextStage = getNextStage(lead)
   const prevStage = getPrevStage(lead)
   const contactName = lead.qualification.contact_name?.trim() ?? ""
@@ -382,6 +387,13 @@ export default function LeadDetailPage() {
           </Link>
 
           <div className="flex items-center gap-2">
+            {/* Abordagem: primeira mensagem ou follow-up vencido, sem sair do lead */}
+            {outreachMode && (
+              <Button size="sm" className="gap-1.5" onClick={() => setOutreachOpen(true)}>
+                <Send className="size-3.5" />
+                {outreachMode === "followup" ? "Follow-up" : "Abordar"}
+              </Button>
+            )}
             {/* Generate proposal button — opens the pre-filled proposal editor */}
             <Link href={`/freelancer/proposals?leadId=${lead.id}&new=1`}>
               <Button size="sm" variant="outline" className="gap-1.5">
@@ -624,6 +636,7 @@ export default function LeadDetailPage() {
         confirmLabel="Converter lead"
         onConfirm={() => handleConvertToClient(lead)}
       />
+      <OutreachSheet lead={lead} open={outreachOpen} onOpenChange={setOutreachOpen} />
     </div>
   )
 }
