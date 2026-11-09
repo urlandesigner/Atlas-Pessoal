@@ -8,6 +8,12 @@ interface StageBadgeProps {
   stage: PipelineStage
   /** When true, renders a filled (high-emphasis) chip. */
   solid?: boolean
+  /**
+   * When true, renders a quiet chip (no border, muted text). Used in the leads
+   * list for leads that already moved past "Lead", so the ones still to be
+   * approached stand out.
+   */
+  muted?: boolean
   className?: string
 }
 
@@ -15,7 +21,7 @@ interface StageBadgeProps {
  * Standardized pipeline-stage chip used across list, kanban and detail views.
  * Monochrome by design — the icon carries the identity, not color.
  */
-export function StageBadge({ stage, solid, className }: StageBadgeProps) {
+export function StageBadge({ stage, solid, muted, className }: StageBadgeProps) {
   const meta = STAGE_META[stage]
   const Icon = meta.icon
 
@@ -25,7 +31,9 @@ export function StageBadge({ stage, solid, className }: StageBadgeProps) {
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium leading-5 transition-colors",
         solid
           ? "bg-foreground text-background"
-          : "border border-border bg-background text-foreground",
+          : muted
+            ? "bg-muted/60 text-muted-foreground"
+            : "border border-border bg-background text-foreground",
         className
       )}
     >
