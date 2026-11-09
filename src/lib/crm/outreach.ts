@@ -33,7 +33,7 @@ export const OUTREACH_VARIABLES = [
 
 export const DEFAULT_OUTREACH_TEMPLATES: OutreachTemplates = {
   no_site:
-    "{saudacao} Aqui é o Urlan, de Vitória. Pesquisei {segmento} em {cidade} no Google e não achei um site da {empresa}. Fiz estes para profissionais de saúde aqui no ES: https://udlabs.com.br/?ref=whatsapp#portfolio. Se quiser, te mostro como ficaria o seu.",
+    "{saudacao} Aqui é o Urlan, de Vitória, faço sites para profissionais de saúde. Pesquisei {segmento} em {cidade} no Google e não achei um site da {empresa}. Alguns que fiz aqui no ES: https://udlabs.com.br/?ref=whatsapp#portfolio. Se quiser, te mostro como ficaria o seu.",
   has_site:
     "{saudacao} Sou o Urlan, crio sites sob medida para profissionais de saúde aqui no ES. Dei uma olhada no site da {empresa} ({site}) e anotei 2 pontos que podem estar fazendo pacientes desistirem antes de agendar. Posso te mandar? É rápido e sem compromisso.",
   followup_1:
