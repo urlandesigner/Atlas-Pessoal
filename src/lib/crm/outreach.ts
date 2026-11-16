@@ -28,12 +28,14 @@ export const OUTREACH_VARIABLES = [
   { key: "{empresa}", hint: "Nome da empresa / clínica" },
   { key: "{segmento}", hint: "Segmento ou especialidade" },
   { key: "{cidade}", hint: "Cidade do lead" },
+  { key: "{em_cidade}", hint: "“em Vitória” ou vazio se não houver cidade" },
+  { key: "{da_empresa}", hint: "“da Dra. Ana” ou “do Dr. Caio”, conforme o nome" },
   { key: "{site}", hint: "Site atual do lead" },
 ] as const
 
 export const DEFAULT_OUTREACH_TEMPLATES: OutreachTemplates = {
   no_site:
-    "{saudacao} Aqui é o Urlan, de Vitória, faço sites para profissionais de saúde. Pesquisei {segmento} em {cidade} no Google e não achei um site da {empresa}. Alguns que fiz aqui no ES: https://udlabs.com.br/saude/. Se quiser, te mostro como ficaria o seu.",
+    "{saudacao} Aqui é o Urlan, designer de Vitória. Faço sites e estou buscando profissionais de saúde da região para oferecer 50% de desconto nos próximos projetos. Pesquisei {segmento}{em_cidade} no Google e não achei um site {da_empresa}. Alguns que fiz aqui no ES: https://udlabs.com.br/saude/. Se quiser, te mostro como ficaria o seu, sem compromisso.",
   has_site:
     "{saudacao} Sou o Urlan, crio sites sob medida para profissionais de saúde aqui no ES. Dei uma olhada no site da {empresa} ({site}) e anotei 2 pontos que podem estar fazendo pacientes desistirem antes de agendar. Posso te mandar? É rápido e sem compromisso.",
   followup_1:
@@ -115,6 +117,14 @@ export function leadEmail(lead: LeadEntry) {
   return (lead.communication.email ?? lead.qualification.email ?? lead.email ?? "").trim()
 }
 
+const MASCULINE_NAME_RE = /^(dr\.?\s|instituto\b|centro\b|consultório\b|studio\b)/i
+
+/** "Dra. Ana" → "da Dra. Ana"; "Dr. Caio" → "do Dr. Caio"; vazio → "da sua clínica". */
+function daEmpresa(company: string) {
+  if (!company) return "da sua clínica"
+  return `${MASCULINE_NAME_RE.test(company) ? "do" : "da"} ${company}`
+}
+
 export function renderTemplate(template: string, lead: LeadEntry) {
   const nome = firstName(lead.qualification.contact_name ?? lead.name)
   const values: Record<string, string> = {
@@ -123,6 +133,8 @@ export function renderTemplate(template: string, lead: LeadEntry) {
     "{empresa}": lead.prospect.company?.trim() || "sua clínica",
     "{segmento}": lead.prospect.segment?.trim().toLowerCase() || "sua área",
     "{cidade}": lead.prospect.city?.trim() || "sua cidade",
+    "{em_cidade}": lead.prospect.city?.trim() ? ` em ${lead.prospect.city.trim()}` : "",
+    "{da_empresa}": daEmpresa(lead.prospect.company?.trim() || ""),
     "{site}": leadSite(lead) || "seu site",
   }
   return template.replace(/\{[a-z_]+\}/g, (token) => values[token] ?? token)
