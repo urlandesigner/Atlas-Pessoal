@@ -35,7 +35,7 @@ export const OUTREACH_VARIABLES = [
 
 export const DEFAULT_OUTREACH_TEMPLATES: OutreachTemplates = {
   no_site:
-    "{saudacao} Aqui é o Urlan, designer de Vitória. Faço sites e estou buscando profissionais de saúde da região para oferecer 50% de desconto nos próximos projetos. Pesquisei {segmento}{em_cidade} no Google e não achei um site {da_empresa}. Alguns que fiz aqui no ES: https://udlabs.com.br/saude/. Se quiser, te mostro como ficaria o seu, sem compromisso.",
+    "{saudacao} Aqui é o Urlan, designer de Vitória. Faço sites e estou ampliando meu portfólio na área da saúde, por isso estou oferecendo 50% de desconto para profissionais da região nos próximos projetos. Pesquisei {segmento}{em_cidade} no Google e não achei um site {da_empresa}. Alguns que fiz aqui no ES: https://udlabs.com.br/saude/. Se quiser, te mostro como ficaria o seu, sem compromisso.",
   has_site:
     "{saudacao} Sou o Urlan, crio sites sob medida para profissionais de saúde aqui no ES. Dei uma olhada no site da {empresa} ({site}) e anotei 2 pontos que podem estar fazendo pacientes desistirem antes de agendar. Posso te mandar? É rápido e sem compromisso.",
   followup_1:
